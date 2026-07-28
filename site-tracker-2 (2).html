@@ -1,0 +1,3465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Site Tracker</title>
+<style>
+  :root{
+    --bg: #1b1c1e;
+    --panel: #232427;
+    --panel-2: #2b2c30;
+    --line: #37383c;
+    --ink: #eef0f2;
+    --ink-dim: #9a9da3;
+    --ink-faint: #6d7077;
+    --ok: #6fbf8b;
+    --warn: #d9a84e;
+    --urgent: #d9705e;
+    --mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+    --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; min-height:100vh; background:var(--bg); color:var(--ink);
+    font-family:var(--sans); -webkit-font-smoothing:antialiased;
+  }
+  ::selection{background:#3a5a4a; color:#fff;}
+
+  /* ---------- PASSWORD GATE ---------- */
+  #gate{
+    position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+    background:var(--bg); z-index:50;
+  }
+  .gate-box{
+    width:min(340px, 86vw); text-align:center;
+  }
+  .gate-mark{
+    font-family:var(--mono); font-size:11px; letter-spacing:.18em; color:var(--ink-faint);
+    text-transform:uppercase; margin-bottom:10px;
+  }
+  .gate-box h1{
+    font-size:22px; font-weight:600; margin:0 0 26px; letter-spacing:-0.01em;
+  }
+  #gate input{
+    width:100%; background:var(--panel); border:1px solid var(--line); color:var(--ink);
+    padding:12px 14px; border-radius:8px; font-size:14px; font-family:var(--mono);
+    outline:none; text-align:center; letter-spacing:.05em;
+  }
+  #gate input:focus{border-color:#5a5d63;}
+  #gate button{
+    margin-top:12px; width:100%; padding:11px; border-radius:8px; border:none;
+    background:var(--ink); color:#1b1c1e; font-weight:600; font-size:14px; cursor:pointer;
+  }
+  #gate button:hover{background:#d5d7da;}
+  #gate-error{color:var(--urgent); font-size:12px; margin-top:10px; height:14px; font-family:var(--mono);}
+
+  /* ---------- APP SHELL ---------- */
+  #app{display:none;}
+  .wrap{max-width:900px; margin:0 auto; padding:36px 20px 100px;}
+
+  .topline{
+    display:flex; justify-content:space-between; align-items:baseline;
+    border-bottom:1px solid var(--line); padding-bottom:18px; margin-bottom:28px;
+  }
+  .topline h1{font-size:26px; margin:0; font-weight:600; letter-spacing:-0.01em;}
+  .topline .clock{font-family:var(--mono); font-size:12px; color:var(--ink-faint);}
+
+  .section-label{
+    font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:.14em;
+    color:var(--ink-faint); margin:0 0 12px;
+  }
+
+  /* ---------- OVERVIEW ---------- */
+  .overview{
+    background:var(--panel); border:1px solid var(--line); border-radius:12px;
+    padding:22px; margin-bottom:20px;
+  }
+  .today-list{list-style:none; margin:0; padding:0;}
+  .today-list li{
+    display:flex; gap:12px; align-items:flex-start; padding:10px 0;
+    border-bottom:1px solid var(--line); font-size:14px;
+  }
+  .today-list li:last-child{border-bottom:none;}
+  .dot{width:8px; height:8px; border-radius:50%; margin-top:5px; flex:none;}
+  .dot.urgent{background:var(--urgent);}
+  .dot.warn{background:var(--warn);}
+  .dot.ok{background:var(--ok);}
+  .dot.completed{background:var(--ink-faint);}
+  .today-site{color:var(--ink-faint); font-family:var(--mono); font-size:12px;}
+  .empty-note{color:var(--ink-faint); font-size:14px; font-style:italic;}
+
+  /* ---------- ADD SITE ---------- */
+  .add-btn{
+    display:inline-flex; align-items:center; gap:8px; background:transparent;
+    border:1px dashed var(--line); color:var(--ink-dim); padding:10px 16px;
+    border-radius:8px; font-size:13px; cursor:pointer; margin-bottom:24px; width:100%;
+    justify-content:center; font-family:var(--sans);
+  }
+  .add-btn:hover{border-color:var(--ink-faint); color:var(--ink);}
+
+  #add-site-panel{
+    display:none; background:var(--panel); border:1px solid var(--line); border-radius:12px;
+    padding:18px; margin-bottom:24px;
+  }
+  #add-site-panel textarea{width:100%;}
+  #add-site-panel .hint{font-size:12px; color:var(--ink-faint); margin:8px 0 12px; line-height:1.5;}
+
+  /* ---------- SITE CARDS ---------- */
+  .site-card{
+    background:var(--panel); border:1px solid var(--line); border-radius:12px;
+    margin-bottom:12px; overflow:hidden;
+  }
+  .site-card.completed{opacity:0.6;}
+  .site-card.completed:hover{opacity:0.85;}
+  .site-head{
+    display:flex; align-items:center; gap:14px; padding:16px 18px; cursor:pointer;
+    user-select:none;
+  }
+  .site-head:hover{background:var(--panel-2);}
+  .chevron{
+    font-family:var(--mono); color:var(--ink-faint); font-size:12px; transition:transform .15s ease;
+    flex:none; width:14px;
+  }
+  .site-card.open .chevron{transform:rotate(90deg);}
+  .site-name{font-weight:600; font-size:15px;}
+  .site-sub{color:var(--ink-faint); font-size:12px; font-family:var(--mono);}
+  .site-edge{margin-left:auto; display:flex; flex-direction:column; align-items:flex-end; gap:5px; flex:none;}
+  .termin-progress-badge{font-family:var(--mono); font-size:10.5px; color:var(--ink-faint); white-space:nowrap;}
+  .status-pill{
+    font-family:var(--mono); font-size:11px; padding:4px 9px; border-radius:20px;
+    border:1px solid var(--line); color:var(--ink-dim); flex:none; text-transform:uppercase; letter-spacing:.04em;
+  }
+  .status-pill.urgent{color:var(--urgent); border-color:#5c3833;}
+  .status-pill.warn{color:var(--warn); border-color:#5c4f30;}
+  .status-pill.ok{color:var(--ok); border-color:#33503f;}
+  .status-pill.completed{color:var(--ink-faint); border-color:var(--line);}
+  .status-pill.overdue{color:#fff; background:var(--urgent); border-color:var(--urgent);}
+  .dot.overdue{background:var(--urgent); box-shadow:0 0 0 3px rgba(217,112,94,.25);}
+  .check-row.overdue-row{background:rgba(217,112,94,.1); border-radius:6px; padding-left:4px; margin-left:-4px;}
+  .check-row.overdue-row .mark.pending{border-color:var(--urgent); color:var(--urgent);}
+  .check-row.overdue-row > span{color:#e8a79c;}
+  .overdue-tag{font-size:10px; color:var(--urgent); font-weight:700; letter-spacing:.04em; margin-left:8px;}
+  .risk-tag{
+    font-family:var(--mono); font-size:10px; padding:3px 8px; border-radius:20px; flex:none;
+    text-transform:uppercase; letter-spacing:.03em; margin:4px 6px 0 0; display:inline-block;
+    color:var(--warn); border:1px solid #5c4f30; background:rgba(217,168,78,.08);
+  }
+  .tag-chip{
+    font-family:var(--mono); font-size:10px; padding:3px 8px; border-radius:20px; display:inline-block;
+    color:var(--ink-dim); border:1px solid var(--line); background:var(--panel-2); margin:4px 6px 0 0;
+  }
+  .site-controls{display:flex; gap:10px; margin-bottom:12px; flex-wrap:wrap;}
+  .site-controls input[type=text]{
+    flex:1 1 220px; background:var(--panel); border:1px solid var(--line); color:var(--ink);
+    padding:8px 12px; border-radius:7px; font-size:13px;
+  }
+  .site-controls select{
+    background:var(--panel); border:1px solid var(--line); color:var(--ink-dim);
+    padding:8px 10px; border-radius:7px; font-size:12.5px;
+  }
+  .fin-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:14px;}
+  @media(max-width:560px){.fin-grid{grid-template-columns:1fr;}}
+  .fin-stat{background:var(--panel-2); border:1px solid var(--line); border-radius:8px; padding:12px 14px;}
+  .fin-label{font-size:11px; color:var(--ink-faint); text-transform:uppercase; letter-spacing:.05em; margin-bottom:6px;}
+  .fin-value{font-family:var(--mono); font-size:16px; color:var(--ink);}
+
+  .site-body{display:none; padding:6px 18px 20px; border-top:1px solid var(--line);}
+  .site-card.open .site-body{display:block;}
+
+  .tier{margin-top:18px;}
+  .binder-progress{margin-bottom:14px;}
+  .binder-progress-label{display:flex; justify-content:space-between; font-size:11.5px; color:var(--ink-faint); margin-bottom:5px;}
+  .binder-progress-track{height:7px; border-radius:4px; background:var(--panel-2); border:1px solid var(--line); overflow:hidden;}
+  .binder-progress-fill{height:100%; background:var(--ok); border-radius:4px; transition:width .3s;}
+  .tier-title{
+    font-family:var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:.14em;
+    color:var(--ink-faint); margin-bottom:10px;
+  }
+
+  .kv-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px 20px; font-size:13px;}
+  .kv-grid div span.k{color:var(--ink-faint); margin-right:6px;}
+  @media(max-width:560px){.kv-grid{grid-template-columns:1fr;}}
+
+  .check-grid{display:grid; grid-template-columns:1fr 1fr; gap:6px 24px;}
+  @media(max-width:560px){.check-grid{grid-template-columns:1fr;}}
+  .check-row{
+    display:flex; align-items:center; gap:9px; font-size:13px; padding:5px 0;
+    border-bottom:1px solid var(--line);
+  }
+  .check-row:last-child{border-bottom:none;}
+  .mark{
+    width:16px; height:16px; border-radius:4px; border:1px solid var(--line); flex:none;
+    display:flex; align-items:center; justify-content:center; font-size:11px; font-family:var(--mono);
+  }
+  .mark.done{background:#2b4139; border-color:#3a5c4c; color:var(--ok);}
+  .mark.pending{color:var(--ink-faint);}
+  .check-date{margin-left:auto; font-family:var(--mono); font-size:11px; color:var(--ink-faint);}
+
+  .doc-group{
+    border:1px solid var(--line); border-radius:8px; margin-top:12px; overflow:hidden;
+  }
+  .doc-group-head{
+    display:flex; align-items:center; gap:9px; padding:11px 13px; cursor:pointer;
+    font-size:13px; font-weight:600; user-select:none;
+  }
+  .doc-group-head:hover{background:var(--panel-2);}
+  .doc-group .chevron{font-size:11px;}
+  .doc-group-count{margin-left:auto; font-family:var(--mono); font-size:11px; color:var(--ink-faint); font-weight:400;}
+  .doc-group-body{display:none; padding:2px 13px 12px;}
+  .doc-group.open .doc-group-body{display:block;}
+  .doc-group.open > .doc-group-head .chevron{transform:rotate(90deg);}
+  .doc-group-note{font-size:11.5px; color:var(--ink-faint); margin-top:8px; line-height:1.5; font-style:italic;}
+
+  .field-label{font-size:11px; color:var(--ink-faint); margin:12px 0 4px;}
+
+  .free-fields{font-size:13px; line-height:1.7;}
+  .free-fields .row{display:flex; gap:8px; padding:4px 0; border-bottom:1px solid var(--line);}
+  .free-fields .row:last-child{border-bottom:none;}
+  .free-fields .k{color:var(--ink-faint); flex:none; width:150px;}
+  .free-fields .v{color:var(--ink);}
+
+  textarea{
+    width:100%; background:var(--panel-2); border:1px solid var(--line); color:var(--ink);
+    border-radius:8px; padding:11px 13px; font-family:var(--sans); font-size:13px; resize:vertical;
+    min-height:70px; outline:none;
+  }
+  textarea:focus{border-color:#5a5d63;}
+
+  .btn-row{display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;}
+  .btn{
+    background:var(--ink); color:#1b1c1e; border:none; padding:9px 15px; border-radius:7px;
+    font-size:12.5px; font-weight:600; cursor:pointer; font-family:var(--sans);
+  }
+  .btn:hover{background:#d5d7da;}
+  .btn.ghost{
+    background:transparent; color:var(--ink-dim); border:1px solid var(--line);
+  }
+  .btn.ghost:hover{color:var(--ink); border-color:var(--ink-faint);}
+  .btn.danger{
+    background:transparent; color:var(--urgent); border:1px solid #5c3833;
+  }
+  .btn.danger:hover{background:#3a2320; color:#f0a597;}
+
+  .nav-tab{background:transparent; color:var(--ink-faint); border:1px solid transparent; padding:8px 16px;}
+  .nav-tab:hover{color:var(--ink-dim); background:var(--panel-2);}
+  .nav-tab.active{background:var(--panel-2); color:var(--ink); border-color:var(--line);}
+
+  .guide-group{margin-bottom:14px; border:1px solid var(--line); border-radius:10px; overflow:hidden; background:var(--panel);}
+  .guide-group-header{
+    display:flex; align-items:center; justify-content:space-between; padding:14px 18px; cursor:pointer;
+    font-weight:600; font-size:14px; user-select:none;
+  }
+  .guide-group-header:hover{background:var(--panel-2);}
+  .guide-group-count{font-weight:400; font-size:11.5px; color:var(--ink-faint); font-family:var(--mono); margin-left:8px;}
+  .guide-group-arrow{font-size:11px; color:var(--ink-faint); transition:transform .15s;}
+  .guide-group-body{padding:0 18px 16px; display:none;}
+  .guide-group.open .guide-group-body{display:block;}
+  .guide-group.open .guide-group-arrow{transform:rotate(90deg);}
+  .guide-item{padding:12px 0; border-top:1px solid var(--line);}
+  .guide-item:first-child{border-top:none;}
+  .guide-item-name{font-size:13.5px; font-weight:600; color:var(--ink); display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+  .guide-code{
+    font-family:var(--mono); font-size:10px; font-weight:700; letter-spacing:0.03em;
+    padding:2px 7px; border-radius:5px; background:var(--panel-2); color:var(--ink-faint); border:1px solid var(--line);
+  }
+  .guide-item-row{margin-top:6px; font-size:12.5px; line-height:1.55;}
+  .guide-item-row b{color:var(--ink-dim); font-weight:600;}
+  .guide-empty{padding:24px; text-align:center; color:var(--ink-faint); font-size:13px;}
+
+  .timestamp-note{font-size:11px; color:var(--ink-faint); font-family:var(--mono); margin-top:8px;}
+
+  /* ---------- MY DOCUMENTS ---------- */
+  .mydoc-card{border:1px solid var(--line); border-radius:12px; background:var(--panel); margin-bottom:20px; overflow:hidden;}
+  .mydoc-body{padding:18px 20px;}
+  .mydoc-field-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px 16px;}
+  .mydoc-field{display:flex; flex-direction:column; gap:4px;}
+  .mydoc-field label{font-size:11px; color:var(--ink-faint);}
+  .mydoc-field input, .mydoc-field select{
+    background:var(--panel-2); border:1px solid var(--line); color:var(--ink); border-radius:6px; padding:7px 10px; font-size:12.5px; font-family:var(--sans);
+  }
+
+  .lib-card{border:1px solid var(--line); border-radius:12px; background:var(--panel); margin-bottom:16px; overflow:hidden;}
+  .lib-card-head{padding:14px 18px; border-bottom:1px solid var(--line);}
+  .lib-card-title{font-size:14px; font-weight:700;}
+  .lib-card-meta{font-size:11px; color:var(--ink-faint); margin-top:2px;}
+  .lib-preview{padding:14px 18px; min-height:40px; display:flex; align-items:center; justify-content:center;}
+  .lib-preview-img{max-width:100%; max-height:420px; border-radius:6px; border:1px solid var(--line);}
+  .lib-preview-pdf{width:100%; height:480px; border:1px solid var(--line); border-radius:6px;}
+  .lib-preview-empty{
+    width:100%; text-align:center; padding:22px 14px; font-size:12px; color:var(--ink-faint);
+    background:var(--panel-2); border:1px dashed var(--line); border-radius:8px;
+  }
+  .lib-preview-badge{
+    display:inline-block; font-family:var(--mono); font-size:11px; font-weight:700; letter-spacing:.03em;
+    padding:3px 9px; border-radius:5px; background:var(--panel); border:1px solid var(--line); color:var(--ink-dim); margin-bottom:8px;
+  }
+  .lib-card .btn-row{padding:0 18px 16px;}
+
+  @media print{
+    #view-mydocs, #main-nav, #view-guide{display:none !important;}
+  }
+
+  .summary-box{
+    background:var(--panel-2); border:1px solid var(--line); border-radius:8px; padding:12px 14px;
+    font-size:13px; line-height:1.6; margin-top:10px; display:none; white-space:pre-wrap;
+  }
+
+  .email-upload{
+    display:flex; align-items:center; gap:10px; margin-top:8px; flex-wrap:wrap;
+  }
+  .email-upload input[type=file]{font-size:12px; color:var(--ink-dim); max-width:180px;}
+  .email-preview{max-width:100%; margin-top:8px; border-radius:6px; border:1px solid var(--line); display:none;}
+
+  /* ---------- PRINT / PDF SITE REPORT ---------- */
+  #print-area{display:none;}
+  .pr-title{font-size:20px; font-weight:700; margin:0 0 2px;}
+  .pr-sub{font-size:12px; color:#555; margin-bottom:16px;}
+  .pr-section-title{
+    font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:#555;
+    border-bottom:1px solid #ccc; padding-bottom:4px; margin:18px 0 8px;
+  }
+  .pr-kv{display:grid; grid-template-columns:1fr 1fr; gap:4px 20px; font-size:12.5px;}
+  .pr-kv div{padding:2px 0;}
+  .pr-kv .k{color:#555; margin-right:6px;}
+  .pr-bar-track{height:10px; border-radius:5px; background:#e6e6e6; overflow:hidden; margin:6px 0 4px;}
+  .pr-bar-fill{height:100%; background:#4a7a5f;}
+  .pr-list{font-size:12.5px; margin:0; padding-left:18px;}
+  .pr-list li{margin-bottom:3px;}
+  .pr-list li.pending{color:#a33;}
+  .pr-footer{font-size:10.5px; color:#888; margin-top:24px; border-top:1px solid #ccc; padding-top:8px;}
+  @media print{
+    #gate, #app{display:none !important;}
+    #print-area{
+      display:block !important; position:static; background:#fff; color:#111;
+      font-family:var(--sans); max-width:720px; margin:0 auto; padding:10px;
+    }
+  }
+
+  .file-list{font-size:13px;}
+  .file-row{
+    display:flex; align-items:center; gap:10px; padding:8px 0; flex-wrap:wrap;
+    border-bottom:1px solid var(--line);
+  }
+  .file-row:last-child{border-bottom:none;}
+  .file-name{flex:1 1 140px; min-width:100px; word-break:break-all;}
+  .file-meta{color:var(--ink-faint); font-family:var(--mono); font-size:11px; flex:none;}
+</style>
+</head>
+<body>
+
+  <!-- PASSWORD GATE -->
+  <div id="gate">
+    <div class="gate-box">
+      <div class="gate-mark">RESTRICTED · SITE TRACKER</div>
+      <h1>Enter password</h1>
+      <input id="pw-input" type="password" placeholder="••••••••" autocomplete="off">
+      <button onclick="checkPassword()">Unlock</button>
+      <div id="gate-error"></div>
+    </div>
+  </div>
+
+  <!-- PRINT / PDF SITE REPORT (hidden except when printing) -->
+  <div id="print-area"></div>
+
+  <!-- APP -->
+  <div id="app">
+    <div class="wrap">
+      <div class="topline" style="flex-wrap:wrap; gap:10px;">
+        <h1>Welcome!</h1>
+        <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+          <span id="save-indicator" style="font-family:var(--mono); font-size:11px; color:var(--ink-faint); opacity:0.4; transition:opacity .3s;"></span>
+          <span id="author-badge" style="font-family:var(--mono); font-size:11px; color:var(--ink-faint); cursor:pointer;" onclick="promptAuthorName()" title="Click to set your name — shown on the changes you make"></span>
+          <button class="btn ghost" style="padding:6px 10px; font-size:11px;" onclick="toggleCloudPanel()">Cloud sync</button>
+          <button class="btn ghost" style="padding:6px 10px; font-size:11px;" onclick="exportDeadlinesICS()">Export deadlines (.ics)</button>
+          <button class="btn ghost" style="padding:6px 10px; font-size:11px;" onclick="exportData()">Export backup</button>
+          <button class="btn ghost" style="padding:6px 10px; font-size:11px;" onclick="exportFullBackup()">Export full backup (+files)</button>
+          <label class="btn ghost" style="padding:6px 10px; font-size:11px; cursor:pointer; margin:0;">
+            Import backup
+            <input type="file" accept="application/json" style="display:none" onchange="importData(this)">
+          </label>
+          <label class="btn ghost" style="padding:6px 10px; font-size:11px; cursor:pointer; margin:0;">
+            Import sites (CSV)
+            <input type="file" accept=".csv,text/csv" style="display:none" onchange="importSitesCSV(this)">
+          </label>
+          <div class="clock" id="clock"></div>
+        </div>
+      </div>
+
+      <div id="main-nav" style="display:flex; gap:8px; margin-bottom:24px; border-bottom:1px solid var(--line); padding-bottom:14px;">
+        <button class="btn nav-tab active" id="nav-tab-sites" onclick="switchView('sites')">Site Tracker</button>
+        <button class="btn nav-tab" id="nav-tab-guide" onclick="switchView('guide')">📖 Document Guide</button>
+        <button class="btn nav-tab" id="nav-tab-mydocs" onclick="switchView('mydocs')">📝 My Documents</button>
+      </div>
+
+      <div id="view-sites">
+
+      <div id="cloud-panel" style="display:none; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:18px; margin-bottom:24px;">
+        <div class="tier-title">Cloud Sync (optional)</div>
+        <div class="hint" style="font-size:12px; color:var(--ink-faint); margin-bottom:12px; line-height:1.5;">
+          Point this at any JSON storage endpoint you control (e.g. a PocketBase or Supabase REST row, or a simple JSON-bin service) to keep this tracker's data in sync across devices, instead of manual Export/Import. Nothing is sent anywhere until you set an endpoint and press Push or enable auto-sync. Uploaded files stay local only — sync covers site data, not attachments. Before every push, this checks whether the cloud copy has changed since this device last synced (e.g. a colleague pushed from theirs) and asks before overwriting it — so two people syncing the same endpoint won't silently erase each other's work.
+        </div>
+        <div class="kv-grid" style="margin-bottom:10px;">
+          <div style="grid-column:1/-1;">
+            <span class="k">Endpoint URL</span>
+            <input id="cloud-endpoint" type="text" placeholder="https://your-backend.example.com/site-tracker"
+              style="background:var(--panel-2); border:1px solid var(--line); color:var(--ink); border-radius:5px; padding:6px 9px; font-size:12.5px; width:100%; margin-top:4px;">
+          </div>
+          <div>
+            <span class="k">Auth token (optional)</span>
+            <input id="cloud-token" type="password" placeholder="Bearer token / API key"
+              style="background:var(--panel-2); border:1px solid var(--line); color:var(--ink); border-radius:5px; padding:6px 9px; font-size:12.5px; width:100%; margin-top:4px;">
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; margin-top:20px;">
+            <input type="checkbox" id="cloud-autosync" style="width:16px; height:16px;">
+            <label for="cloud-autosync" style="font-size:12.5px; color:var(--ink-dim);">Auto-push after every change</label>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn" onclick="cloudPush()">Push now</button>
+          <button class="btn ghost" onclick="cloudPull()">Pull now</button>
+          <button class="btn ghost" onclick="saveCloudConfig()">Save settings</button>
+        </div>
+        <div id="cloud-status" style="font-size:11.5px; color:var(--ink-faint); margin-top:10px; font-family:var(--mono);"></div>
+      </div>
+
+      <div class="section-label">Overview</div>
+      <div class="overview">
+        <div id="overview-summary" class="empty-note">No sites yet — add your first site below.</div>
+      </div>
+
+      <div class="section-label">What to do today</div>
+      <div class="overview">
+        <ul class="today-list" id="today-list">
+          <li class="empty-note">Nothing to show yet.</li>
+        </ul>
+      </div>
+
+      <div class="section-label">Recent Activity</div>
+      <div class="overview">
+        <ul class="today-list" id="activity-list">
+          <li class="empty-note">No changes logged yet.</li>
+        </ul>
+      </div>
+
+      <div class="section-label">Executive Overview</div>
+      <div class="overview" id="executive-box">
+        <div class="empty-note">No sites yet.</div>
+      </div>
+
+      <div class="section-label">Closing Progress</div>
+      <div class="overview" id="financials-box">
+        <div class="empty-note">No sites yet.</div>
+      </div>
+
+      <button class="add-btn" onclick="toggleAddPanel()">+ Add new site</button>
+      <div id="add-site-panel">
+        <div class="tier-title">New site — describe it in one go</div>
+        <textarea id="add-site-input" placeholder="e.g. This is site 12, by company Protel, start from 1-2-26 to 20-11-26. Status active. Region Sumatra, desa Ujung Batu. PIC is Andi, deputy head is Rina, email is client@indosat.com. Operator is XL."></textarea>
+        <div class="hint">Mention company, start/end date, status, region/desa, PIC, deputy, email, operator — in any order, in plain sentences.</div>
+        <div class="btn-row">
+          <button class="btn" onclick="addNewSite()">Create site</button>
+          <button class="btn ghost" onclick="toggleAddPanel()">Cancel</button>
+        </div>
+      </div>
+
+      <div class="section-label">Sites <span id="site-count" style="color:var(--ink-faint)"></span></div>
+      <div class="site-controls">
+        <input id="site-search" type="text" placeholder="Search name, company, operator, region, korlap, PIC, tags, site ID…" oninput="renderSiteList()">
+        <select id="site-filter" onchange="renderSiteList()">
+          <option value="all">All statuses</option>
+          <option value="overdue">Overdue</option>
+          <option value="urgent">Urgent</option>
+          <option value="warn">Needs attention</option>
+          <option value="ok">On track</option>
+          <option value="completed">Completed</option>
+        </select>
+        <select id="site-sort" onchange="renderSiteList()">
+          <option value="urgency">Sort: Urgency</option>
+          <option value="name">Sort: Name</option>
+          <option value="region">Sort: Region</option>
+          <option value="company">Sort: Company</option>
+          <option value="deadline">Sort: Nearest deadline</option>
+        </select>
+      </div>
+      <div class="site-controls" id="advanced-filters">
+        <select id="site-filter-operator" onchange="renderSiteList()"><option value="all">All operators</option></select>
+        <select id="site-filter-region" onchange="renderSiteList()"><option value="all">All regions</option></select>
+        <select id="site-filter-korlap" onchange="renderSiteList()"><option value="all">All Korlap/Mandor</option></select>
+        <select id="site-filter-pic" onchange="renderSiteList()"><option value="all">All PIC</option></select>
+        <button class="btn ghost" style="padding:8px 12px; font-size:12.5px;" onclick="clearAdvancedFilters()">Clear filters</button>
+      </div>
+      <div id="site-list"></div>
+
+      </div>
+      <!-- /view-sites -->
+
+      <div id="view-guide" style="display:none;">
+        <div class="section-label">Document Guide</div>
+        <div class="hint" style="font-size:12px; color:var(--ink-faint); margin-bottom:14px; line-height:1.5;">
+          What every document in this tracker actually is, when to request it, and what's needed to get it — first-draft reference, worth refining as you go.
+        </div>
+        <input id="guide-search" type="text" placeholder="Search any document (e.g. RFI, denah jaringan, mixing design)…" oninput="renderDocGuide()"
+          style="width:100%; background:var(--panel-2); border:1px solid var(--line); color:var(--ink); border-radius:8px; padding:10px 14px; font-size:13.5px; margin-bottom:18px;">
+        <div id="guide-groups"></div>
+      </div>
+
+      <div id="view-mydocs" style="display:none;">
+        <div class="section-label">My Documents</div>
+        <div class="hint" style="font-size:12px; color:var(--ink-faint); margin-bottom:18px; line-height:1.5;">
+          Documents you produce yourself — not the ones you're waiting on from others (that's the Document Guide). Attach the real file, title it, and it's here with a preview and a download button whenever you need it — a backup in case you ever lose the original.
+        </div>
+        <div class="mydoc-card">
+          <div class="mydoc-body">
+            <div class="mydoc-field-grid" style="margin-bottom:12px;">
+              <div class="mydoc-field"><label>Title (e.g. "PO Template", "BAST Blank Form")</label><input id="lib-upload-label" type="text" placeholder="What is this document?"></div>
+              <div class="mydoc-field"><label>File</label><input id="lib-upload-file" type="file"></div>
+            </div>
+            <button class="btn" onclick="addLibraryFile()">Add to library</button>
+          </div>
+        </div>
+        <div id="library-list" style="margin-top:20px;"></div>
+      </div>
+
+    </div>
+  </div>
+
+<script>
+/* =================== CONFIG =================== */
+// Password is checked as a SHA-256 hash instead of plaintext, so the literal
+// password string doesn't sit in the page source. Note for an app that's a
+// single static HTML file with no server: this stops a casual "view source"
+// read, but it isn't real security — anyone with dev tools can still find
+// where the check happens, and a short password's hash can be brute-forced
+// offline. Treat this as a light deterrent, not a lock.
+// To change the password: open a console anywhere and run
+//   crypto.subtle.digest('SHA-256', new TextEncoder().encode('newpassword'))
+//     .then(b=>console.log([...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')))
+// then paste the resulting hex string in as PASSWORD_HASH below.
+const PASSWORD_HASH = "1f1bd761357df33c4408c7e78b311ecfe1492a3dbf0335a8e69c2f92a1710691";
+const STORAGE_KEY = "sites-data";
+const AUTHOR_NAME_KEY = "sites-author-name";
+const ACTIVITY_LOG_KEY = "sites-activity-log";
+const ACTIVITY_LOG_MAX = 300; // oldest entries drop off past this so localStorage stays small
+
+const TERMIN_LABELS = {1:"5% DP",2:"10% FP",3:"30% SP",4:"Asuransi Polis",5:"20% TP",6:"20% FP",7:"15% FP"};
+// Percentage each termin represents, used to compute payment progress from
+// PO Amount × (sum of completed termin %). Termin 4 (Asuransi Polis) isn't
+// a payment milestone, so it carries no percentage.
+const TERMIN_PERCENT = {1:5, 2:10, 3:30, 4:0, 5:20, 6:20, 7:15};
+const ADDWORK_LABELS = {1:"40% DP",2:"60/35% FP",3:"25% FP"};
+const DOC_LABELS = {
+  izinLokasi:"Izin Lokasi", izinWarga:"Izin Warga", rfc:"RFC", nod:"NOD",
+  atp:"ATP", tii:"TII", rfi:"RFI"
+};
+
+// Additional flat checklist items (from the CME Site Binder content list),
+// each its own single checkbox + date.
+// Ordered to roughly follow a site's real timeline: survey/design, then
+// construction, testing, electrical/PLN-adjacent items, site finishing,
+// then handover/closing, with addwork/Los Survey (a separate, optional
+// scope) grouped at the very end.
+const DOC_LABELS2 = {
+  // Survey & design
+  baUitzet:"BA UITZET",
+  soilHammerTest:"Soil / Hammer Test",
+  foundationAnalysis:"Foundation Analysis (Green Field site)",
+  buildingBaseframe:"Building & Baseframe Drawing and Analysis (Rooftop site)",
+  towerDrawingAnalysis:"Tower Drawing and Analysis",
+  // Construction
+  apdReleased:"APD Released",
+  baPengecoran:"BA Pengecoran",
+  // Testing / inspection
+  // BA RFI + Checklist RFI — the readiness inspection paperwork, done before the RFI notification/certificate
+  checklistRfi:"Checklist — Ready for Installation (RFI)",
+  baRfi:"BA RFI (Berita Acara Lapangan Ready for Installation)",
+  rfiNotifCert:"Copy of RFI Notification & Certificate",
+  atpChecklist:"ATP Checklist (Civil, ME, Shelter, Power, etc.)",
+  atpCertificate:"ATP Certificate",
+  asBuildDrawing:"As Build Drawing",
+  asBuildQty:"Copy of As Build Quantity, Include Additional Work",
+  // Electrical / PLN-adjacent
+  fotoKwh:"Foto KWH",
+  certificateKwh:"Certificate kWH",
+  certificateAcpdb:"Certificate ACPDB",
+  fotoObl:"Foto OBL",
+  certificateObl:"Certificate OBL",
+  plnDocHoClient:"PLN Doc Hand Over to Client",
+  // Site finishing
+  nameplateRequest:"Nameplate — Request",
+  nameplateSent:"Nameplate — Kirim ke Site",
+  padlockCode:"Padlock Code",
+  sitePhotos:"Site Photographs (Mandatory)",
+  // Handover & closing
+  siteHandOver:"Site Hand Over",
+  mainDocChecklist:"Main Doc Turnkey — Checklist",
+  towerEquipInventory:"Tower Equipment Inventory",
+  suratBebasUtang:"Surat Pernyataan Bebas Utang dari Pihak Ketiga (free-debt letter)",
+  bast:"BAST",
+  softcopyBast:"Softcopy BAST Document",
+  hoCmeProjectOm:"HO CME Project to OM",
+  hoCmeProjectAp9:"HO CME Project to AP9",
+  // Addwork / Los Survey — separate, optional scope, so it sits last
+  losSurveySubmit:"Los Survey — BAST Submit",
+  losSurveyApproved:"Los Survey — BAST Approved",
+  bastAddworkRequest:"BAST Addwork TK — Request",
+  bastAddworkSigned:"BAST Addwork TK — Signed"
+};
+
+// Grouped checklist items — these three have a lot of sub-items, so they
+// render collapsed and expand when you click the group name.
+const DOC_GROUPS = {
+  warranty: {
+    label:"Warranty & Certificate Document",
+    items:{
+      mixDesign:"Mix Design",
+      concreteStrengthTest:"Concrete Strength Test Certificate",
+      hammerSoilTestCert:"Hammer Test Certificate / Soil Test Certificate",
+      hiltiPullOutTest:"Hilti / Pull Out Test (Roof Top)",
+      towerWarrantyLetter:"Tower Warranty Letter (Surat Jaminan Pabrikasi Tower) — if any",
+      reinforcementBarWarranty:"Reinforcement Bar Warranty for non-ACPDB and KWH Meter Panel",
+      acpdbKwhCertLetter:"Certificate letter for ACPDB and KWH Meter Panel",
+      certificateSbp:"Certificate SBP (if any)",
+      certBaseFrame:"Certificate Base Frame from Fabricator",
+      warrantyAc:"Warranty Card for Air Conditioning — indoor site",
+      warrantyObstructionLight:"Warranty Card for Obstruction Light",
+      warrantyAlarmPanel:"Warranty Card for Alarm Panel (Nittan Panel) — indoor site",
+      warrantyFireProtection:"Warranty Card for Fire Protection — indoor site",
+      warrantyCkdShelter:"Warranty Letter from Fabricator for CKD Shelter (if any) — indoor site"
+    }
+  },
+  pln: {
+    label:"PLN Document (BPJL & PLN Contract)",
+    items:{
+      bpjlIdCustomer:"BPJL with ID Customer",
+      suratPenawaranAkli:"Surat Penawaran dari AKLI",
+      jaminanInstalasiAkli:"Jaminan Instalasi dari AKLI",
+      multigunaPln:"Multiguna PLN (Kwitansi Multiguna, Kwitansi BP, Kwitansi UJL)",
+      suratJawabanPln:"Surat Jawaban PLN (untuk kondisi overblast)",
+      denahJaringanPln:"Denah Jaringan PLN",
+      spjbtl:"Surat Perjanjian Jual Beli Tenaga Listrik (SPJBTL)",
+      fotoKoneksiPln:"Foto Dokumentasi Koneksi PLN"
+    }
+  },
+  hse: {
+    label:"HSE Documents",
+    items:{
+      jsa:"JSA (Job Safety Analysis)",
+      qhseBriefing:"QHSE Briefing",
+      hsePerformance:"HSE Performance — Protelindo's Vendor",
+      hseStandardPhotos:"HSE Standard Photos",
+      wahtCmeCert:"Working at Height Technician Level 2 Certificate — Site CME Construction",
+      wahtAtpCert:"Working at Height Technician Level 2 Certificate — ATP process"
+    },
+    note:"* Working at Height Technician Level 1 Certificate, or Rope Access Technician Level 1/2 certificate, is allowed only on condition the certificate date is before 1 June 2015."
+  },
+  bastTurnkey: {
+    label:"BAST Turnkey Handover",
+    items:{
+      softcopySent:"Kirim BAST TK & Produk IMB Softcopy",
+      hardcopySent:"Kirim BAST TK & Produk IMB Hardcopy",
+      submitPss:"Submit PSS",
+      approvedPss:"Approved PSS"
+    }
+  },
+  closingBinder: {
+    label:"Closing Binder CME",
+    items:{
+      planSubmitPss:"Plan Submit ke PSS",
+      uploadPss:"Upload ke PSS",
+      requestNo:"Request Number Issued",
+      emailRevisi:"Email Revisi Diterima",
+      reuploadPss:"Reupload di PSS",
+      hardCopySent:"Kirim Main Doc Hard Copy",
+      binderSigned:"Checklist CME Dok Binder Signed"
+    }
+  }
+};
+
+const DOC_GUIDE = {
+  "core": {
+    "label": "Core Site Documents",
+    "code": "",
+    "collapsible": false,
+    "items": [
+      {
+        "key": "izinLokasi",
+        "name": "Izin Lokasi",
+        "what": "Local government permit confirming the exact site location is approved for tower construction.",
+        "when": "Requested at the very start, before any SITAC or construction work begins.",
+        "req": "Land ownership/lease proof, site coordinates, sometimes a village/kelurahan approval letter."
+      },
+      {
+        "key": "izinWarga",
+        "name": "Izin Warga",
+        "what": "Written consent from nearby residents/community leaders that they don't object to the tower being built.",
+        "when": "Requested during the SITAC (site acquisition) phase, alongside Izin Lokasi.",
+        "req": "Signatures from adjacent landowners/RT-RW, sometimes a community meeting (sosialisasi) record."
+      },
+      {
+        "key": "rfc",
+        "name": "RFC",
+        "what": "Request for Construction — formal internal approval to begin physical construction, confirming design and permits are in place.",
+        "when": "Requested once civil design and all pre-construction permits are cleared, right before ground-breaking.",
+        "req": "Approved tower drawing, site permits, sometimes a signed PO from the operator."
+      },
+      {
+        "key": "nod",
+        "name": "NOD",
+        "what": "Notice of Discrepancy — a formal record of any deviation between the planned design/spec and what's actually feasible or built on site.",
+        "when": "Raised when field conditions don't match the design, so it can be reviewed and approved before/during construction.",
+        "req": "Site survey findings, photos, engineering sign-off on the proposed deviation."
+      },
+      {
+        "key": "atp",
+        "name": "ATP",
+        "what": "Acceptance Test Procedure — the formal inspection/test confirming the completed tower and installation meet spec and are safe for handover.",
+        "when": "Requested once construction is fully finished, before handing the site to the operator.",
+        "req": "Completed civil/mechanical/electrical work, supporting test certificates (soil, concrete, etc.), site ready for the inspector."
+      },
+      {
+        "key": "tii",
+        "name": "TII",
+        "what": "Best-effort interpretation: a closing technical inspection / final sign-off following ATP, confirming punch-list items are resolved. Worth confirming the exact internal definition with your team.",
+        "when": "Typically right after ATP, once issues flagged during ATP are fixed.",
+        "req": "ATP report with punch list, evidence (photos/certs) each punch-list item was closed."
+      },
+      {
+        "key": "rfi",
+        "name": "RFI",
+        "what": "Request for Inspection — a formal request asking the operator/client to send an inspector to check completed work at a given stage.",
+        "when": "Requested whenever a work milestone is ready for third-party sign-off, often just before ATP.",
+        "req": "Work completed to the point being inspected, site access arranged, supporting docs ready for the inspector."
+      }
+    ]
+  },
+  "mainDoc": {
+    "label": "Main Doc Turnkey",
+    "code": "MDT",
+    "collapsible": false,
+    "items": [
+      {
+        "key": "soilHammerTest",
+        "name": "Soil / Hammer Test",
+        "what": "Geotechnical test result confirming soil bearing capacity supports the tower foundation design.",
+        "when": "Requested before/during foundation design finalization.",
+        "req": "Site soil sampling or hammer test conducted by a certified geotechnical team."
+      },
+      {
+        "key": "foundationAnalysis",
+        "name": "Foundation Analysis (Green Field site)",
+        "what": "Engineering calculation showing the designed foundation can safely support tower loads, for ground-based sites.",
+        "when": "Requested during civil design, before RFC.",
+        "req": "Soil test data, tower load spec, structural engineer's calculation and sign-off."
+      },
+      {
+        "key": "buildingBaseframe",
+        "name": "Building & Baseframe Drawing and Analysis (Rooftop site)",
+        "what": "Structural drawing and calculation confirming a rooftop building can carry the tower baseframe/load.",
+        "when": "Rooftop sites only — requested during civil design, before RFC.",
+        "req": "Building structural drawings, load analysis by a certified structural engineer."
+      },
+      {
+        "key": "towerDrawingAnalysis",
+        "name": "Tower Drawing and Analysis",
+        "what": "The approved engineering drawing and structural analysis of the tower itself.",
+        "when": "Requested at design stage, before fabrication/construction starts.",
+        "req": "Tower type/height spec, wind/load analysis, fabricator or engineering sign-off."
+      },
+      {
+        "key": "checklistRfi",
+        "name": "Checklist — Ready for Installation (RFI)",
+        "what": "A 7-point site readiness checklist (tower installed, fence, yard/gravel, grounding, equipment pad, site access, power) plus open notes on any unfinished site conditions.",
+        "when": "Filled out on-site once construction looks done, right before requesting RFI — it's what tells you the site is actually ready to ask for inspection.",
+        "req": "All 7 items physically checkable on site; grounding resistance reading (Ohm) and power source (PLN/Genset, KVA) on hand; any unfinished items noted with a plan-to-finish timeline."
+      },
+      {
+        "key": "baRfi",
+        "name": "BA RFI (Berita Acara Lapangan Ready for Installation)",
+        "what": "The formal field minutes recording the joint inspection between Protelindo, the operator, and the contractor, with a pass / pass-with-notes / not-yet-qualified result.",
+        "when": "Signed right after the Checklist RFI inspection, on the same site visit.",
+        "req": "Completed Checklist RFI, representatives from Protelindo/operator/contractor present to sign, site ID/tower type/foundation type on hand."
+      },
+      {
+        "key": "rfiNotifCert",
+        "name": "Copy of RFI Notification & Certificate",
+        "what": "Proof an RFI was formally submitted, plus the resulting inspection certificate.",
+        "when": "Kept as part of the binder once the RFI has been submitted and answered.",
+        "req": "RFI submission record and the certificate issued after inspection."
+      },
+      {
+        "key": "atpChecklist",
+        "name": "ATP Checklist (Civil, ME, Shelter, Power, etc.)",
+        "what": "The detailed checklist used during ATP, covering every discipline: civil, mechanical/electrical, shelter, power.",
+        "when": "Filled out during the ATP site visit.",
+        "req": "All disciplines physically complete and ready to be checked item by item."
+      },
+      {
+        "key": "atpCertificate",
+        "name": "ATP Certificate",
+        "what": "The formal certificate confirming the site passed ATP.",
+        "when": "Issued after the ATP checklist is completed with no open punch-list items.",
+        "req": "Completed and signed ATP checklist."
+      },
+      {
+        "key": "asBuildDrawing",
+        "name": "As Build Drawing",
+        "what": "Updated drawing reflecting what was actually built versus the original design, including any approved deviations.",
+        "when": "Requested after construction is finished, before final handover.",
+        "req": "Site survey of the completed structure, any NOD/deviation records incorporated."
+      },
+      {
+        "key": "asBuildQty",
+        "name": "Copy of As Build Quantity, Include Additional Work",
+        "what": "A quantity/BOQ document listing exactly what materials and work were used, including any addwork.",
+        "when": "Requested alongside As Build Drawing, for closing/invoicing purposes.",
+        "req": "Site material usage records, addwork approvals if extra scope was added."
+      },
+      {
+        "key": "siteHandOver",
+        "name": "Site Hand Over",
+        "what": "The formal document/event where the completed site is handed from the construction team to operations.",
+        "when": "Requested once ATP and punch-list items are fully closed.",
+        "req": "ATP Certificate, As Build docs, site cleaned and ready for operational use."
+      },
+      {
+        "key": "suratBebasUtang",
+        "name": "Surat Pernyataan Bebas Utang dari Pihak Ketiga",
+        "what": "A signed statement from third parties (contractor/vendor/landowner) confirming no outstanding debts or claims tied to the site.",
+        "when": "Requested before final closing/BAST, to protect against later claims.",
+        "req": "Signatures from relevant third parties confirming no unpaid dues."
+      },
+      {
+        "key": "bast",
+        "name": "BAST",
+        "what": "Berita Acara Serah Terima — the master handover report for the site/work.",
+        "when": "Requested at project closing, once all technical and administrative items are complete.",
+        "req": "All supporting docs (ATP, As Build, free-debt letter, etc.) ready to attach/reference."
+      },
+      {
+        "key": "towerEquipInventory",
+        "name": "Tower Equipment Inventory",
+        "what": "A list of all equipment/materials installed on the tower (antennas, cabling, shelter equipment, etc.).",
+        "when": "Requested at handover, to record exactly what exists on site.",
+        "req": "Physical site inventory/count matched against installation records."
+      },
+      {
+        "key": "softcopyBast",
+        "name": "Softcopy BAST Document",
+        "what": "The digital (scanned/PDF) copy of the signed BAST, for the binder/archive.",
+        "when": "Requested right after the physical BAST is signed.",
+        "req": "Signed hardcopy BAST scanned to PDF."
+      },
+      {
+        "key": "baUitzet",
+        "name": "BA UITZET",
+        "what": "Berita Acara Uitzet — the survey/staking-out report confirming the tower's position was measured and marked on site before construction.",
+        "when": "Requested at the very start of civil works, right after land is secured.",
+        "req": "Land survey/staking measurements, sign-off from surveyor and landowner/witness."
+      },
+      {
+        "key": "baPengecoran",
+        "name": "BA Pengecoran",
+        "what": "Berita Acara Pengecoran — the concrete pouring report, recording when and how the foundation concrete was poured.",
+        "when": "Requested on the day of, or right after, the concrete pour.",
+        "req": "Mix design used, concrete test samples taken, witness sign-off from site supervisor."
+      },
+      {
+        "key": "sitePhotos",
+        "name": "Site Photographs (Mandatory)",
+        "what": "A standard set of photos documenting the site's condition and completion (before, during, after construction).",
+        "when": "Taken throughout construction, compiled for the closing binder.",
+        "req": "Photos at required milestones per the standard photo checklist."
+      },
+      {
+        "key": "hoCmeProjectOm",
+        "name": "HO CME Project to OM",
+        "what": "Hand-over document transferring the completed CME project from construction to Operations & Maintenance (OM).",
+        "when": "Requested right after site hand-over.",
+        "req": "Site fully complete and accepted, OM team ready to receive."
+      },
+      {
+        "key": "hoCmeProjectAp9",
+        "name": "HO CME Project to AP9",
+        "what": "Hand-over document to the AP9 receiving unit (internal department code).",
+        "when": "Same timing as HO to OM — right after site hand-over.",
+        "req": "Same completed-site prerequisites as HO to OM."
+      },
+      {
+        "key": "fotoKwh",
+        "name": "Foto KWH",
+        "what": "Photo evidence of the installed KWH (electricity meter) at the site.",
+        "when": "Requested once the PLN connection/meter installation is complete.",
+        "req": "KWH meter physically installed and functioning."
+      },
+      {
+        "key": "fotoObl",
+        "name": "Foto OBL",
+        "what": "Photo evidence of the Obstruction Light installed and functioning on the tower (for aviation safety).",
+        "when": "Requested once the obstruction light is installed and tested.",
+        "req": "OBL installed, powered, and visibly lit in the photo."
+      },
+      {
+        "key": "plnDocHoClient",
+        "name": "PLN Doc Hand Over to Client",
+        "what": "Hand-over of all PLN (electricity) connection documents to the client/operator.",
+        "when": "Requested once the PLN connection process is fully completed.",
+        "req": "All PLN Document group items completed and compiled."
+      },
+      {
+        "key": "padlockCode",
+        "name": "Padlock Code",
+        "what": "The access code/key info for the site's padlock/gate, handed over for future site access.",
+        "when": "Requested at site hand-over, so operations knows how to access the site.",
+        "req": "Padlock installed, code/key recorded and shared with the receiving team."
+      },
+      {
+        "key": "apdReleased",
+        "name": "APD Released",
+        "what": "Best-effort interpretation: an internal approval/administrative document being released. Scope depends on your internal process — worth confirming with your CME lead.",
+        "when": "Tracked once that internal approval is issued.",
+        "req": "Depends on internal process — confirm the exact requirement."
+      },
+      {
+        "key": "mainDocChecklist",
+        "name": "Main Doc Turnkey — Checklist",
+        "what": "The master checklist tracking whether all Main Doc Turnkey items have been collected.",
+        "when": "Used throughout the closing process to track completion.",
+        "req": "Cross-check against every other item in this group."
+      },
+      {
+        "key": "certificateAcpdb",
+        "name": "Certificate ACPDB",
+        "what": "Certificate for the ACPDB (AC Panel Distribution Board), confirming the electrical distribution panel meets spec and was tested.",
+        "when": "Requested once the ACPDB is installed and tested.",
+        "req": "ACPDB installed, tested, manufacturer/installer certificate issued."
+      },
+      {
+        "key": "certificateKwh",
+        "name": "Certificate kWH",
+        "what": "The formal certificate for the KWH meter installation (separate from the photo evidence).",
+        "when": "Requested alongside Foto KWH, once the meter is installed.",
+        "req": "KWH meter installed and certified by PLN or the installer."
+      },
+      {
+        "key": "certificateObl",
+        "name": "Certificate OBL",
+        "what": "Formal certificate for the Obstruction Light, confirming it meets aviation-safety spec.",
+        "when": "Requested alongside Foto OBL.",
+        "req": "OBL installed, tested, and certified by the supplier/installer."
+      },
+      {
+        "key": "nameplateRequest",
+        "name": "Nameplate — Request",
+        "what": "The request submitted to have a site nameplate (signage with site ID/info) produced.",
+        "when": "Requested once the site ID/details are finalized.",
+        "req": "Confirmed site name/ID and any required format details."
+      },
+      {
+        "key": "nameplateSent",
+        "name": "Nameplate — Kirim ke Site",
+        "what": "Confirmation the produced nameplate was delivered/installed at the site.",
+        "when": "After the nameplate request is fulfilled.",
+        "req": "Nameplate physically sent to and installed at the site."
+      },
+      {
+        "key": "losSurveySubmit",
+        "name": "Los Survey — BAST Submit",
+        "what": "Submission of the handover report (BAST) for LOS (Line of Sight) survey work.",
+        "when": "Requested once LOS survey work is complete.",
+        "req": "LOS survey completed and documented, ready for handover sign-off."
+      },
+      {
+        "key": "losSurveyApproved",
+        "name": "Los Survey — BAST Approved",
+        "what": "Confirmation the LOS survey BAST was reviewed and approved.",
+        "when": "After submission, once the reviewer signs off.",
+        "req": "Submitted LOS Survey BAST, reviewer approval."
+      },
+      {
+        "key": "bastAddworkRequest",
+        "name": "BAST Addwork TK — Request",
+        "what": "Request to initiate the handover report for any addwork (extra scope beyond the original turnkey PO).",
+        "when": "Requested once the addwork scope is physically complete.",
+        "req": "Addwork scope completed, addwork PO reference on hand."
+      },
+      {
+        "key": "bastAddworkSigned",
+        "name": "BAST Addwork TK — Signed",
+        "what": "The signed handover report confirming addwork was accepted.",
+        "when": "After the BAST Addwork request is reviewed and accepted.",
+        "req": "Requested BAST Addwork document, sign-off from the accepting party."
+      }
+    ]
+  },
+  "pln": {
+    "label": "PLN Documents",
+    "code": "PLN",
+    "collapsible": true,
+    "items": [
+      {
+        "key": "bpjlIdCustomer",
+        "name": "BPJL with ID Customer",
+        "what": "The PLN application/registration document (BPJL) together with the assigned customer ID.",
+        "when": "Requested at the very start of the PLN connection process.",
+        "req": "Site address/coordinates, applicant (company) details for PLN registration."
+      },
+      {
+        "key": "suratPenawaranAkli",
+        "name": "Surat Penawaran dari AKLI",
+        "what": "The cost/scope proposal issued by AKLI (the certified electrical installation body) for the site's electrical installation.",
+        "when": "Requested once BPJL registration is in, before installation work begins.",
+        "req": "BPJL/customer ID on hand, AKLI-certified installer engaged."
+      },
+      {
+        "key": "jaminanInstalasiAkli",
+        "name": "Jaminan Instalasi dari AKLI",
+        "what": "AKLI's installation guarantee/warranty document.",
+        "when": "Issued once AKLI accepts and confirms the installation job.",
+        "req": "Signed AKLI proposal, installation scheduled."
+      },
+      {
+        "key": "multigunaPln",
+        "name": "Multiguna PLN (Kwitansi Multiguna, BP, UJL)",
+        "what": "The set of PLN payment receipts (Multiguna, connection fee, security deposit) proving fees were paid.",
+        "when": "Requested after PLN approves the connection and issues billing.",
+        "req": "PLN connection approved, fees paid, receipts collected."
+      },
+      {
+        "key": "suratJawabanPln",
+        "name": "Surat Jawaban PLN (untuk kondisi overblast)",
+        "what": "PLN's official reply letter, specifically for sites flagged with an \"overblast\" (capacity/technical) condition.",
+        "when": "Requested only when the site has an overblast condition flagged by PLN.",
+        "req": "Overblast condition identified, formal request sent to PLN awaiting reply."
+      },
+      {
+        "key": "denahJaringanPln",
+        "name": "Denah Jaringan PLN",
+        "what": "PLN's network layout diagram showing how the site connects into the local electricity grid.",
+        "when": "Requested as part of the technical connection package, alongside the SPJBTL.",
+        "req": "PLN connection point confirmed, diagram issued by PLN."
+      },
+      {
+        "key": "spjbtl",
+        "name": "Surat Perjanjian Jual Beli Tenaga Listrik (SPJBTL)",
+        "what": "The formal electricity sale-purchase agreement between the site and PLN.",
+        "when": "Requested once the connection is technically approved, to finalize the commercial relationship.",
+        "req": "PLN connection approved, both parties sign the agreement."
+      },
+      {
+        "key": "fotoKoneksiPln",
+        "name": "Foto Dokumentasi Koneksi PLN",
+        "what": "Photo evidence of the physical PLN connection at the site (meter, cabling, connection point).",
+        "when": "Requested once the physical connection is completed.",
+        "req": "PLN connection physically installed and energized."
+      }
+    ]
+  },
+  "warranty": {
+    "label": "Warranty & Certificate",
+    "code": "WA&CE",
+    "collapsible": true,
+    "items": [
+      {
+        "key": "mixDesign",
+        "name": "Mix Design",
+        "what": "The concrete mix design specification used for the foundation pour.",
+        "when": "Requested before the concrete pour, as part of the pour plan.",
+        "req": "Mix design approved by the supplier/engineer for the required strength."
+      },
+      {
+        "key": "concreteStrengthTest",
+        "name": "Concrete Strength Test Certificate",
+        "what": "Lab test certificate confirming the poured concrete reached its required strength.",
+        "when": "Requested after the standard curing period following the pour.",
+        "req": "Concrete test cubes/cylinders taken at pour time, sent to a certified lab."
+      },
+      {
+        "key": "hammerSoilTestCert",
+        "name": "Hammer Test Certificate / Soil Test Certificate",
+        "what": "The formal certificate version of the soil/hammer test result.",
+        "when": "Requested once the soil/hammer test is conducted.",
+        "req": "Soil/hammer test performed by a certified geotechnical team."
+      },
+      {
+        "key": "hiltiPullOutTest",
+        "name": "Hilti / Pull Out Test (Roof Top)",
+        "what": "Test confirming rooftop anchor bolts (Hilti-type) can bear the required pull-out load.",
+        "when": "Rooftop sites only — requested after anchor installation.",
+        "req": "Anchors installed, pull-out test performed by a certified tester."
+      },
+      {
+        "key": "towerWarrantyLetter",
+        "name": "Tower Warranty Letter (Surat Jaminan Pabrikasi Tower)",
+        "what": "The fabricator's warranty letter for the tower structure — if applicable.",
+        "when": "Requested at tower delivery/installation, if the fabricator provides one.",
+        "req": "Tower fabricated and delivered; check with fabricator if a warranty letter applies."
+      },
+      {
+        "key": "reinforcementBarWarranty",
+        "name": "Reinforcement Bar Warranty (non-ACPDB/KWH panel)",
+        "what": "Warranty covering the reinforcement bar (rebar) used, for panels other than ACPDB/KWH.",
+        "when": "Requested once rebar work is complete.",
+        "req": "Rebar supplier/installer warranty documentation."
+      },
+      {
+        "key": "acpdbKwhCertLetter",
+        "name": "Certificate Letter for ACPDB and KWH Meter Panel",
+        "what": "Certificate covering the ACPDB and KWH meter panel installation.",
+        "when": "Requested once both panels are installed.",
+        "req": "ACPDB and KWH panels installed and tested."
+      },
+      {
+        "key": "certificateSbp",
+        "name": "Certificate SBP (if any)",
+        "what": "Certificate for SBP — applicable only where relevant to the site type.",
+        "when": "Requested if the site configuration requires it.",
+        "req": "Confirm applicability with your engineering team for this site."
+      },
+      {
+        "key": "certBaseFrame",
+        "name": "Certificate Base Frame from Fabricator",
+        "what": "The fabricator's certificate for the tower base frame.",
+        "when": "Requested at base frame delivery/installation.",
+        "req": "Base frame fabricated and delivered by the manufacturer."
+      },
+      {
+        "key": "warrantyAc",
+        "name": "Warranty Card for Air Conditioning (indoor site)",
+        "what": "Manufacturer/installer warranty for the shelter's air conditioning unit.",
+        "when": "Indoor sites only — requested once AC is installed.",
+        "req": "AC unit installed and commissioned."
+      },
+      {
+        "key": "warrantyObstructionLight",
+        "name": "Warranty Card for Obstruction Light",
+        "what": "Manufacturer warranty for the installed obstruction light.",
+        "when": "Requested once the obstruction light is installed.",
+        "req": "Obstruction light installed and tested."
+      },
+      {
+        "key": "warrantyAlarmPanel",
+        "name": "Warranty Card for Alarm Panel — Nittan Panel (indoor site)",
+        "what": "Manufacturer warranty for the shelter's alarm panel.",
+        "when": "Indoor sites only — requested once the panel is installed.",
+        "req": "Alarm panel installed and commissioned."
+      },
+      {
+        "key": "warrantyFireProtection",
+        "name": "Warranty Card for Fire Protection (indoor site)",
+        "what": "Manufacturer/installer warranty for the fire protection system.",
+        "when": "Indoor sites only — requested once the system is installed.",
+        "req": "Fire protection system installed and tested."
+      },
+      {
+        "key": "warrantyCkdShelter",
+        "name": "Warranty Letter — CKD Shelter Fabricator (indoor site, if any)",
+        "what": "Fabricator's warranty letter for a CKD (knock-down) shelter, where applicable.",
+        "when": "Indoor CKD shelter sites — requested at shelter delivery.",
+        "req": "CKD shelter delivered by the fabricator; confirm if a warranty letter is provided."
+      }
+    ]
+  },
+  "hse": {
+    "label": "HSE",
+    "code": "HSE",
+    "collapsible": true,
+    "items": [
+      {
+        "key": "jsa",
+        "name": "JSA (Job Safety Analysis)",
+        "what": "A written risk assessment identifying hazards and controls for the specific work being done on site.",
+        "when": "Completed before any work activity begins, and updated per task.",
+        "req": "Task scope defined, hazards identified, control measures documented and signed by the site supervisor."
+      },
+      {
+        "key": "qhseBriefing",
+        "name": "QHSE Briefing",
+        "what": "Record of the safety briefing given to workers before starting work.",
+        "when": "Conducted at the start of each work day/shift or before a new task.",
+        "req": "Attendance record, briefing content covering that day's hazards."
+      },
+      {
+        "key": "hsePerformance",
+        "name": "HSE Performance — Protelindo's Vendor",
+        "what": "The vendor's HSE performance record/scorecard as tracked by Protelindo.",
+        "when": "Reviewed periodically and at project closing.",
+        "req": "Vendor's incident history and compliance record for the project duration."
+      },
+      {
+        "key": "hseStandardPhotos",
+        "name": "HSE Standard Photos",
+        "what": "Standard photo evidence showing safety measures in place on site (PPE use, barricades, signage, etc.).",
+        "when": "Taken throughout construction, compiled at closing.",
+        "req": "Photos matching the required HSE photo checklist."
+      },
+      {
+        "key": "wahtCmeCert",
+        "name": "Working at Height Technician L2 Cert — CME Construction",
+        "what": "Certification proving the CME construction crew is qualified to work at height.",
+        "when": "Required before any at-height construction work starts.",
+        "req": "Valid Level 2 Working at Height certificate for each relevant worker (Level 1 / Rope Access accepted only if dated before 1 June 2015)."
+      },
+      {
+        "key": "wahtAtpCert",
+        "name": "Working at Height Technician L2 Cert — ATP process",
+        "what": "Same certification requirement, specifically for whoever performs at-height work during the ATP inspection.",
+        "when": "Required before the ATP site visit if at-height access is needed.",
+        "req": "Valid Level 2 certificate for the inspecting/assisting personnel."
+      }
+    ]
+  },
+  "bastTurnkey": {
+    "label": "Turnkey Handover",
+    "code": "TH",
+    "collapsible": true,
+    "items": [
+      {
+        "key": "softcopySent",
+        "name": "Kirim BAST TK & Produk IMB Softcopy",
+        "what": "Sending the digital copies of the Turnkey BAST and IMB (building permit) product.",
+        "when": "Requested once BAST TK is signed and the IMB product is ready.",
+        "req": "Signed BAST TK, IMB documentation on hand."
+      },
+      {
+        "key": "hardcopySent",
+        "name": "Kirim BAST TK & Produk IMB Hardcopy",
+        "what": "Sending the physical hardcopies of the same documents.",
+        "when": "Alongside or shortly after the softcopy send.",
+        "req": "Printed/signed hardcopies ready for courier or hand delivery."
+      },
+      {
+        "key": "submitPss",
+        "name": "Submit PSS",
+        "what": "Submitting the completed handover package into PSS (the internal document/project system).",
+        "when": "Once softcopy/hardcopy sends are done.",
+        "req": "All BAST TK and IMB documents ready to upload."
+      },
+      {
+        "key": "approvedPss",
+        "name": "Approved PSS",
+        "what": "Confirmation the PSS submission was reviewed and approved.",
+        "when": "After submission, once the internal reviewer signs off.",
+        "req": "Submitted PSS package, reviewer approval."
+      }
+    ]
+  },
+  "closingBinder": {
+    "label": "Closing Binder",
+    "code": "CB",
+    "collapsible": true,
+    "items": [
+      {
+        "key": "planSubmitPss",
+        "name": "Plan Submit ke PSS",
+        "what": "The planned/target date for submitting the closing binder to PSS.",
+        "when": "Set once the binder is being compiled, ahead of the actual submission.",
+        "req": "Binder contents mostly finalized, a submission date agreed with the team."
+      },
+      {
+        "key": "uploadPss",
+        "name": "Upload ke PSS",
+        "what": "The actual upload of the closing binder documents into PSS.",
+        "when": "Once the binder is complete and ready.",
+        "req": "All binder documents compiled and ready to upload."
+      },
+      {
+        "key": "requestNo",
+        "name": "Request Number Issued",
+        "what": "The reference/tracking number issued by PSS once the binder is submitted.",
+        "when": "Right after upload.",
+        "req": "Successful upload to PSS."
+      },
+      {
+        "key": "emailRevisi",
+        "name": "Email Revisi Diterima",
+        "what": "Confirmation a revision-request email (if any) was received from the reviewer.",
+        "when": "If the reviewer finds issues with the submitted binder.",
+        "req": "Binder under review, any feedback captured."
+      },
+      {
+        "key": "reuploadPss",
+        "name": "Reupload di PSS",
+        "what": "Re-uploading the binder after making the requested revisions.",
+        "when": "After addressing the revision email.",
+        "req": "Corrections made, updated documents ready."
+      },
+      {
+        "key": "hardCopySent",
+        "name": "Kirim Main Doc Hard Copy",
+        "what": "Sending the physical hardcopy of the main closing documents.",
+        "when": "Once the binder is approved, per standard closing process.",
+        "req": "Printed, signed hardcopy set ready for delivery."
+      },
+      {
+        "key": "binderSigned",
+        "name": "Checklist CME Dok Binder Signed",
+        "what": "The final signed checklist confirming the CME document binder is complete and accepted.",
+        "when": "The last step, once everything above is done.",
+        "req": "All binder items complete, final sign-off from the responsible approver."
+      }
+    ]
+  }
+};
+
+/* =================== STATE =================== */
+let sites = [];
+let openCards = new Set();      // site ids whose card is expanded
+let openDocGroups = new Set();  // "<siteId>:<groupKey>" for expanded doc groups
+
+/* =================== PASSWORD GATE =================== */
+async function sha256Hex(str){
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+async function checkPassword(){
+  const btn = document.querySelector('#gate button');
+  const val = document.getElementById('pw-input').value;
+  if(!val) return;
+  try{
+    if(btn) btn.disabled = true;
+    const hash = await sha256Hex(val);
+    if(hash === PASSWORD_HASH){
+      document.getElementById('gate').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
+      loadData();
+    } else {
+      document.getElementById('gate-error').textContent = "Incorrect password.";
+    }
+  }catch(e){
+    // crypto.subtle requires a secure context (https or localhost) — fall
+    // back to a clear message rather than silently failing the gate.
+    document.getElementById('gate-error').textContent = "Can't verify password here — open this file over https:// or localhost.";
+  }finally{
+    if(btn) btn.disabled = false;
+  }
+}
+document.getElementById('pw-input').addEventListener('keydown', e=>{
+  if(e.key === 'Enter') checkPassword();
+});
+
+/* =================== CLOCK =================== */
+function tickClock(){
+  const d = new Date();
+  document.getElementById('clock').textContent = d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+}
+tickClock(); setInterval(tickClock, 60000);
+
+/* =================== SEED DATA (from Tracking_dan_Progress_PTI.xlsx, sites 111-120) =================== */
+function t(done, date=""){ return {done, date}; }
+function buildSeedSites(){
+  const base = id => newSiteObject(id);
+  const list = [];
+
+  let s = base(1); Object.assign(s, {
+    name:"Site 111", siteCode:"JAW-CJV-0026-X-F", company:"PT Protelindo", project:"BTF",
+    region:"Central Java", desa:"Kab. Boyolali", operator:"XL", korlap:"Suryadi", pic:"Resti",
+    siteStatus:"ATP", docStatus:"TTD SPV", keterangan:"proses ATP",
+    takeAction:"Waiting mini audit approved // routing legalisir RFI Certificate // Submit MCV 20% RFI // Waiting TII Approved // Routing TII Certificate // Binder TTD APM",
+    poDate:"12-03-26", poNumber:"4500327942", poAmount:"282,852,000",
+    turnkeyValue:"282,852,000", addworkValue:"254,265,000",
+    addworkNote:"Addwork PO released 09-06-26, No. 4500336817, Rp254,265,000 — not yet billed via MCV. (Note: verified against both the CME sheet and the PO sheet — the figures 320,434,000 / 118,517,000 mentioned separately actually belong to Puron Bulu, No. 107, not this site.)",
+    termin:{1:t(true),2:t(true),3:t(true),4:t(true),5:t(true),6:t(false),7:t(false)}
+  }); list.push(s);
+
+  s = base(2); Object.assign(s, {
+    name:"Site 112", siteCode:"JAW-WJV-0041-H-F", company:"PT Protelindo", project:"BTF",
+    region:"West Java", desa:"Kab. Cianjur", operator:"IOH", korlap:"Moris", pic:"Resti",
+    siteStatus:"RFI", docStatus:"NY", keterangan:"Close",
+    takeAction:"Kirim nameplate, padlock & OBL // buat dokumen ATP // collect mini audit & TII saat ATP",
+    poDate:"09-03-26", poNumber:"4500327186", poAmount:"382,184,000", turnkeyValue:"382,184,000",
+    termin:{1:t(true),2:t(true),3:t(true),4:t(true),5:t(false),6:t(false),7:t(false)}
+  }); list.push(s);
+
+  s = base(3); Object.assign(s, {
+    name:"Site 113", siteCode:"JAW-BTN-0315-I-B", company:"PT STP", project:"B2S",
+    region:"Banten", desa:"Kota Tangerang Selatan", operator:"IOH", pic:"Yesri",
+    keterangan:"site DROP", takeAction:"Site dropped — no further action expected.",
+    poDate:"09-12-25", poNumber:"4500317758", poAmount:"3,000,000", turnkeyValue:"3,000,000",
+    termin:{1:t(true),2:t(false),3:t(false),4:t(false),5:t(false),6:t(false),7:t(false)}
+  }); list.push(s);
+
+  s = base(4); Object.assign(s, {
+    name:"Site 114", siteCode:"JAW-BTN-0316-I-B", company:"PT STP", project:"B2S",
+    region:"Banten", desa:"Kota Tangerang Selatan", operator:"IOH", korlap:"Ujang Maman", pic:"Yesri",
+    siteStatus:"ATP Close", docStatus:"Binder TTD SPV", keterangan:"Close",
+    takeAction:"Waiting TII Approved // TTD Binder APM",
+    poDate:"09-12-25", poNumber:"4500317756", poAmount:"261,808,000", turnkeyValue:"261,808,000",
+    termin:{1:t(true),2:t(true),3:t(true),4:t(true),5:t(true),6:t(true),7:t(false)}
+  }); list.push(s);
+
+  s = base(5); Object.assign(s, {
+    name:"Site 115", siteCode:"JAW-WJV-0042-X-F", company:"PT STP", project:"BTF",
+    region:"West Java", desa:"Kota Bekasi", operator:"XL", korlap:"Mulyana", pic:"Resti",
+    siteStatus:"RFI", docStatus:"NY", keterangan:"RFI",
+    takeAction:"Buat dokumen ATP // collect mini audit & TII saat ATP",
+    poDate:"12-12-25", poNumber:"4500318363", poAmount:"260,456,000", turnkeyValue:"260,456,000",
+    termin:{1:t(true),2:t(true),3:t(true),4:t(true),5:t(false),6:t(false),7:t(false)}
+  }); list.push(s);
+
+  s = base(6); Object.assign(s, {
+    name:"Site 116", siteCode:"JAW-EJV-0634-X-B", company:"PT Protelindo", project:"B2S",
+    region:"East Java", desa:"Kab. Tulungagung", operator:"XL", korlap:"Mino", pic:"Andri",
+    siteStatus:"ATP Close", docStatus:"TTD SPV", keterangan:"ATP Close",
+    takeAction:"Binder TTD APM",
+    poDate:"06-02-26", poNumber:"4500323040", poAmount:"369,924,000", turnkeyValue:"369,924,000", addworkValue:"125,347,000",
+    addworkNote:"Addwork PO released 14-07-26, No. 4500342614, Rp125,347,000 — not yet billed via MCV.",
+    termin:{1:t(true),2:t(true),3:t(true),4:t(true),5:t(true),6:t(true),7:t(false)}
+  }); list.push(s);
+
+  s = base(7); Object.assign(s, {
+    name:"Site 117", siteCode:"JAW-EJV-0676-X-B", company:"PT Protelindo", project:"B2S",
+    region:"East Java", desa:"Kab. Tulungagung", operator:"XL", pic:"Andri",
+    keterangan:"Minimal activity — small PO only, no CME progress logged yet.",
+    poDate:"06-02-26", poNumber:"4500323041", poAmount:"3,000,000", turnkeyValue:"3,000,000",
+    termin:{1:t(false),2:t(false),3:t(false),4:t(false),5:t(false),6:t(false),7:t(false)}
+  }); list.push(s);
+
+  s = base(8); Object.assign(s, {
+    name:"Site 118", siteCode:"JAW-EJV-0678-X-B", company:"PT Protelindo", project:"B2S",
+    region:"East Java", desa:"Kab. Tulungagung", operator:"XL", korlap:"Mino", pic:"Andri / Ratna",
+    siteStatus:"ATP Close", docStatus:"TTD SPV", keterangan:"ATP Close",
+    takeAction:"Binder TTD APM",
+    poDate:"06-02-26", poNumber:"4500323037", poAmount:"369,924,000", turnkeyValue:"369,924,000",
+    termin:{1:t(true),2:t(true),3:t(true),4:t(true),5:t(true),6:t(true),7:t(false)}
+  }); list.push(s);
+
+  s = base(9); Object.assign(s, {
+    name:"Site 119", siteCode:"JAW-WJV-1032-I-B", company:"PT STP", project:"B2S",
+    region:"West Java", desa:"Kota Depok", operator:"ISAT", korlap:"Moris", pic:"Rosida",
+    siteStatus:"ATP", docStatus:"TTD SPV", keterangan:"ATP",
+    takeAction:"Routing TII Certificate // Binder TTD APM",
+    poDate:"08-04-26", poNumber:"4500329670", poAmount:"257,063,000", turnkeyValue:"257,063,000",
+    addworkNote:"LOS Survey PO Rp3,000,000 (No. 4500331444, released 23-04-26) — BAST LOS Survey submitted 06-05-26.",
+    termin:{1:t(true),2:t(true),3:t(true),4:t(true),5:t(true),6:t(true),7:t(false)}
+  }); list.push(s);
+
+  s = base(10); Object.assign(s, {
+    name:"Site 120", siteCode:"JAW-WJV-1053-I-B", company:"PT STP", project:"B2S",
+    region:"West Java", desa:"Kab. Bogor", operator:"ISAT", korlap:"Ujang Maman", pic:"Rosida",
+    siteStatus:"RFI", docStatus:"NY", keterangan:"RFI",
+    takeAction:"Buat dokumen ATP // collect mini audit // kirim nameplate, padlock, OBL saat ATP // collect foto TII saat ATP",
+    poDate:"08-06-26", poNumber:"4500336320", poAmount:"331,217,000", turnkeyValue:"331,217,000",
+    termin:{1:t(true),2:t(true),3:t(true),4:t(true),5:t(true),6:t(false),7:t(false)}
+  }); list.push(s);
+
+  list.forEach(site => { site.timestamps['seeded'] = 'Imported from spreadsheet'; recomputeSuggestion(site); });
+  return list;
+}
+
+/* =================== STORAGE =================== */
+// Uses localStorage so this file works standalone (double-clicked / opened
+// directly in a browser) — no external API needed. Data is saved in THIS
+// browser only, tied to this file's location, so use Export/Import below to
+// move data between browsers or devices, or to keep a backup.
+function loadData(){
+  let raw = null;
+  try{
+    raw = localStorage.getItem(STORAGE_KEY);
+  }catch(e){
+    console.error("Load failed", e);
+  }
+  sites = raw ? JSON.parse(raw) : [];
+  if(sites.length === 0){
+    sites = buildSeedSites();
+  } else {
+    sites.forEach(ensureSiteShape);
+  }
+  sites.forEach(recomputeSuggestion);
+  saveData();
+  render();
+}
+function saveData(){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(sites));
+    flashSaveIndicator();
+    maybeAutoPush();
+  }catch(e){
+    console.error("Save failed", e);
+    alert("Could not save — your browser storage may be full or disabled (e.g. private/incognito mode).");
+  }
+}
+function flashSaveIndicator(){
+  const el = document.getElementById('save-indicator');
+  if(!el) return;
+  el.textContent = "Saved " + new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+  el.style.opacity = "1";
+  clearTimeout(flashSaveIndicator._t);
+  flashSaveIndicator._t = setTimeout(()=>{ el.style.opacity = "0.4"; }, 1500);
+}
+
+/* ---- Export deadlines to a calendar (.ics) ---- */
+// One all-day event per active site with an End date set, so deadlines show
+// up in whatever calendar app the person already checks (Google/Outlook/
+// Apple), instead of only being visible if they open this tracker. Pure
+// client-side file generation — no calendar account or network access needed.
+function icsEscape(str){
+  return String(str||'').replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/\n/g,'\\n');
+}
+function icsDate(d){
+  return d.getFullYear() + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0');
+}
+function addDays(d, n){
+  const r = new Date(d);
+  r.setDate(r.getDate()+n);
+  return r;
+}
+function exportDeadlinesICS(){
+  const withDates = sites
+    .filter(s=>!s.completed)
+    .map(s=>({site:s, end:parseSiteDate(s.endDate)}))
+    .filter(x=>x.end);
+  if(withDates.length===0){
+    alert("No active sites have an End date set. Add one under a site's Tier 1 (Identity) fields so deadlines can be exported to a calendar.");
+    return;
+  }
+  const now = new Date();
+  const stamp = icsDate(now) + "T" + String(now.getHours()).padStart(2,'0') + String(now.getMinutes()).padStart(2,'0') + String(now.getSeconds()).padStart(2,'0') + "Z";
+  const lines = ["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Site Tracker//Deadlines//EN","CALSCALE:GREGORIAN"];
+  withDates.forEach(({site, end})=>{
+    const desc = [
+      site.suggestion || '',
+      site.takeAction ? ("Next: " + site.takeAction) : '',
+      site.siteCode ? ("Site ID: " + site.siteCode) : ''
+    ].filter(Boolean).join('\n');
+    lines.push(
+      "BEGIN:VEVENT",
+      "UID:site-" + site.id + "-deadline@site-tracker",
+      "DTSTAMP:" + stamp,
+      "DTSTART;VALUE=DATE:" + icsDate(end),
+      "DTEND;VALUE=DATE:" + icsDate(addDays(end,1)),
+      "SUMMARY:" + icsEscape((site.urgencyLevel==='overdue' ? "OVERDUE — " : "") + site.name + " deadline"),
+      "DESCRIPTION:" + icsEscape(desc),
+      "BEGIN:VALARM",
+      "TRIGGER:-P1D",
+      "ACTION:DISPLAY",
+      "DESCRIPTION:" + icsEscape(site.name + " deadline is tomorrow"),
+      "END:VALARM",
+      "END:VEVENT"
+    );
+  });
+  lines.push("END:VCALENDAR");
+  const blob = new Blob([lines.join("\r\n")], {type:"text/calendar"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = "site-tracker-deadlines-" + new Date().toISOString().slice(0,10) + ".ics";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+/* ---- Export / Import (backup, or move data to another browser/device) ---- */
+function exportData(){
+  const blob = new Blob([JSON.stringify(sites, null, 2)], {type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = "site-tracker-backup-" + new Date().toISOString().slice(0,10) + ".json";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+function blobToDataURL(blob){
+  return new Promise((resolve, reject)=>{
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(blob);
+  });
+}
+// Export backup PLUS the actual bytes of every uploaded file / email
+// screenshot, base64-embedded, so this one file is a complete backup — no
+// more "attachments didn't come with the JSON" gap. Bigger file, but self-
+// contained; that's the intended trade-off for a real backup.
+async function exportFullBackup(){
+  const fileIds = [];
+  sites.forEach(s=>{
+    (s.files||[]).forEach(f=> fileIds.push(f.id));
+    if(s.lastEmailImgId) fileIds.push(s.lastEmailImgId);
+  });
+  const libraryMeta = loadLibraryMeta();
+  libraryMeta.forEach(item => fileIds.push(item.id));
+  const uniqueIds = [...new Set(fileIds)];
+  const filesOut = {};
+  let skipped = 0;
+  for(const fid of uniqueIds){
+    try{
+      const blob = await getFileBlob(fid);
+      if(blob) filesOut[fid] = await blobToDataURL(blob);
+      else skipped++;
+    }catch(e){ skipped++; }
+  }
+  const payload = {
+    kind: "site-tracker-full-backup", version: 1,
+    exportedAt: new Date().toISOString(),
+    sites, files: filesOut, library: libraryMeta
+  };
+  const blob = new Blob([JSON.stringify(payload)], {type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = "site-tracker-full-backup-" + new Date().toISOString().slice(0,10) + ".json";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  if(skipped>0) alert("Backup saved, but " + skipped + " attached file(s) couldn't be read and were skipped — everything else (including all site data) exported fine.");
+}
+async function restoreFilesFromBackup(filesObj){
+  const entries = Object.entries(filesObj || {});
+  let restored = 0, failed = 0;
+  for(const [fid, dataUrl] of entries){
+    try{
+      const blob = await dataUrlToBlob(dataUrl);
+      await storeFileBlob(fid, blob);
+      restored++;
+    }catch(e){ failed++; }
+  }
+  if(entries.length>0) alert("Restored " + restored + " attached file(s)" + (failed ? (", " + failed + " failed") : "") + ".");
+  render();
+}
+function importData(input){
+  const file = input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try{
+      const parsed = JSON.parse(e.target.result);
+      if(Array.isArray(parsed)){
+        if(!confirm("This will replace all current data in this tracker with the contents of the backup file. Continue?")) return;
+        sites = parsed;
+        sites.forEach(ensureSiteShape);
+        sites.forEach(recomputeSuggestion);
+        saveData();
+        render();
+        return;
+      }
+      if(parsed && parsed.kind === "site-tracker-full-backup" && Array.isArray(parsed.sites)){
+        const fileCount = parsed.files ? Object.keys(parsed.files).length : 0;
+        const msg = "This will replace all current data" + (fileCount ? (" and restore " + fileCount + " attached file(s)") : "") + " with the contents of this backup file. Continue?";
+        if(!confirm(msg)) return;
+        sites = parsed.sites;
+        sites.forEach(ensureSiteShape);
+        sites.forEach(recomputeSuggestion);
+        saveData();
+        render();
+        if(Array.isArray(parsed.library)) saveLibraryMeta(parsed.library);
+        if(fileCount) restoreFilesFromBackup(parsed.files);
+        if(document.getElementById('view-mydocs') && document.getElementById('view-mydocs').style.display !== 'none') renderLibraryList();
+        return;
+      }
+      throw new Error("Not a recognized backup file");
+    }catch(err){
+      alert("Could not read that file as a valid backup: " + err.message);
+    }
+  };
+  reader.readAsText(file);
+  input.value = "";
+}
+
+/* ---- Bulk import sites from a CSV (e.g. exported from an ops spreadsheet) ---- */
+// Recognizes a set of common column headers (case/spacing-insensitive) and
+// maps them onto site fields. Unrecognized columns are ignored rather than
+// causing an error, so a spreadsheet with extra columns still imports fine.
+// This ADDS new sites — it never overwrites or matches against existing ones.
+const CSV_FIELD_MAP = {
+  name:'name', sitename:'name',
+  siteid:'siteCode', sitecode:'siteCode',
+  company:'company', operator:'operator', project:'project', region:'region',
+  desa:'desa', desakota:'desa',
+  korlap:'korlap', mandor:'korlap', korlapmandor:'korlap',
+  pic:'pic', picverificator:'pic',
+  deputy:'deputy', email:'email',
+  sitestatus:'siteStatus', docstatus:'docStatus', keterangan:'keterangan', tags:'tags',
+  ponumber:'poNumber', podate:'poDate', poamount:'poAmount',
+  addworkvalue:'addworkValue', turnkeyvalue:'turnkeyValue',
+  startdate:'startDate', enddate:'endDate', status:'status',
+  takeaction:'takeAction', addworknote:'addworkNote', progress:'progress',
+  nextexpectation:'nextExpectation'
+};
+function normalizeHeader(h){
+  return String(h||'').toLowerCase().trim().replace(/[^a-z0-9]/g,'');
+}
+// Minimal RFC4180-style CSV parser — handles quoted fields, escaped quotes
+// ("" inside a quoted field), and commas/newlines inside quotes.
+function parseCSV(text){
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for(let i=0;i<text.length;i++){
+    const c = text[i];
+    if(inQuotes){
+      if(c === '"'){
+        if(text[i+1] === '"'){ field += '"'; i++; }
+        else inQuotes = false;
+      } else field += c;
+    } else {
+      if(c === '"') inQuotes = true;
+      else if(c === ','){ row.push(field); field = ''; }
+      else if(c === '\n'){ row.push(field); rows.push(row); row = []; field = ''; }
+      else if(c === '\r'){ /* skip — \n handles the line break */ }
+      else field += c;
+    }
+  }
+  if(field.length > 0 || row.length > 0){ row.push(field); rows.push(row); }
+  return rows.filter(r => r.some(c => c && c.trim() !== ''));
+}
+function importSitesCSV(input){
+  const file = input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try{
+      const rows = parseCSV(String(e.target.result));
+      if(rows.length < 2) throw new Error("No data rows found — the first row should be column headers.");
+      const headers = rows[0].map(normalizeHeader);
+      let nextId = sites.reduce((m,s)=>Math.max(m,s.id),0) + 1;
+      const newSites = [];
+      rows.slice(1).forEach(cols=>{
+        const site = newSiteObject(nextId++);
+        headers.forEach((h, idx)=>{
+          const field = CSV_FIELD_MAP[h];
+          if(field && cols[idx] !== undefined && cols[idx].trim() !== '') site[field] = cols[idx].trim();
+        });
+        ensureSiteShape(site);
+        recomputeSuggestion(site);
+        newSites.push(site);
+      });
+      if(newSites.length===0) throw new Error("No usable rows found in that file.");
+      if(!confirm("Import " + newSites.length + " new site(s) from this CSV? They'll be added alongside your existing sites — nothing existing gets overwritten.")) return;
+      sites = sites.concat(newSites);
+      newSites.forEach(s => stampField(s, 'imported'));
+      saveData();
+      render();
+      alert("Imported " + newSites.length + " site(s).");
+    }catch(err){
+      alert("Could not import that CSV: " + err.message);
+    }
+  };
+  reader.readAsText(file);
+  input.value = "";
+}
+
+/* =================== CLOUD SYNC (optional, off by default) =================== */
+// Config (endpoint/token/autosync) is kept separate from the site data
+// itself in localStorage, since it's per-device setup, not tracker content.
+const CLOUD_CONFIG_KEY = "sites-cloud-config";
+function loadCloudConfig(){
+  try{
+    const raw = localStorage.getItem(CLOUD_CONFIG_KEY);
+    return raw ? JSON.parse(raw) : {endpoint:"", token:"", autosync:false, lastKnownRemoteUpdatedAt:""};
+  }catch(e){ return {endpoint:"", token:"", autosync:false, lastKnownRemoteUpdatedAt:""}; }
+}
+function toggleCloudPanel(){
+  const p = document.getElementById('cloud-panel');
+  const opening = p.style.display !== 'block';
+  p.style.display = opening ? 'block' : 'none';
+  if(opening){
+    const cfg = loadCloudConfig();
+    document.getElementById('cloud-endpoint').value = cfg.endpoint || "";
+    document.getElementById('cloud-token').value = cfg.token || "";
+    document.getElementById('cloud-autosync').checked = !!cfg.autosync;
+  }
+}
+// Preserves lastKnownRemoteUpdatedAt (tracked internally, not shown in the
+// panel) unless the caller explicitly overrides it — the settings form only
+// edits endpoint/token/autosync.
+function saveCloudConfig(overrides){
+  const prev = loadCloudConfig();
+  const cfg = Object.assign({}, prev, {
+    endpoint: document.getElementById('cloud-endpoint').value.trim(),
+    token: document.getElementById('cloud-token').value.trim(),
+    autosync: document.getElementById('cloud-autosync').checked
+  }, overrides || {});
+  try{
+    localStorage.setItem(CLOUD_CONFIG_KEY, JSON.stringify(cfg));
+    setCloudStatus("Settings saved.");
+  }catch(e){
+    setCloudStatus("Could not save settings — " + e.message);
+  }
+}
+function setCloudStatus(msg){
+  const el = document.getElementById('cloud-status');
+  if(el) el.textContent = msg;
+}
+function cloudHeaders(cfg){
+  const h = {"Content-Type":"application/json"};
+  if(cfg.token) h["Authorization"] = "Bearer " + cfg.token;
+  return h;
+}
+// Conflict guard: before overwriting the cloud copy, check what's actually
+// up there right now. If it's changed since the last time THIS device
+// pulled or pushed, someone else has newer data — pushing blind would
+// silently erase their changes. Resolves to true if it's safe to push.
+function checkRemoteBeforePush(cfg){
+  return fetch(cfg.endpoint, {method:"GET", headers: cloudHeaders(cfg)})
+    .then(res => res.ok ? res.json() : null)
+    .then(data=>{
+      const remoteUpdatedAt = data && !Array.isArray(data) ? (data.updatedAt || "") : "";
+      if(!remoteUpdatedAt) return true; // nothing to compare against (empty/legacy/array response) — proceed
+      if(!cfg.lastKnownRemoteUpdatedAt) return true; // first sync from this device — nothing to conflict with yet
+      if(remoteUpdatedAt === cfg.lastKnownRemoteUpdatedAt) return true; // unchanged since our last pull/push
+      return confirm(
+        "The cloud copy has changed since this device last synced (possibly by someone else) — " +
+        "pushing now will overwrite whatever is up there with this device's data. Push anyway?"
+      );
+    })
+    .catch(()=> true); // couldn't check (offline/CORS/etc) — don't block the push on that alone
+}
+function cloudPush(){
+  saveCloudConfig();
+  const cfg = loadCloudConfig();
+  if(!cfg.endpoint){ setCloudStatus("Set an endpoint URL first."); return; }
+  setCloudStatus("Checking cloud copy…");
+  checkRemoteBeforePush(cfg).then(proceed=>{
+    if(!proceed){ setCloudStatus("Push cancelled."); return; }
+    setCloudStatus("Pushing…");
+    const updatedAt = new Date().toISOString();
+    return fetch(cfg.endpoint, {
+      method:"PUT",
+      headers: cloudHeaders(cfg),
+      body: JSON.stringify({sites, updatedAt})
+    }).then(res=>{
+      if(!res.ok) throw new Error("Server responded " + res.status);
+      saveCloudConfig({lastKnownRemoteUpdatedAt: updatedAt});
+      setCloudStatus("Pushed successfully at " + new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) + ".");
+    }).catch(err=>{
+      setCloudStatus("Push failed — " + err.message + ". Check the endpoint accepts PUT with a JSON body.");
+    });
+  });
+}
+function cloudPull(){
+  saveCloudConfig();
+  const cfg = loadCloudConfig();
+  if(!cfg.endpoint){ setCloudStatus("Set an endpoint URL first."); return; }
+  setCloudStatus("Pulling…");
+  fetch(cfg.endpoint, {method:"GET", headers: cloudHeaders(cfg)})
+    .then(res=>{
+      if(!res.ok) throw new Error("Server responded " + res.status);
+      return res.json();
+    })
+    .then(data=>{
+      const incoming = Array.isArray(data) ? data : data.sites;
+      if(!Array.isArray(incoming)) throw new Error("Response didn't contain a sites array");
+      if(!confirm("This will replace all current data in this tracker with what's stored in the cloud. Continue?")) return;
+      sites = incoming;
+      sites.forEach(ensureSiteShape);
+      sites.forEach(recomputeSuggestion);
+      saveData();
+      render();
+      saveCloudConfig({lastKnownRemoteUpdatedAt: (!Array.isArray(data) && data.updatedAt) || ""});
+      setCloudStatus("Pulled successfully at " + new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) + ".");
+    }).catch(err=>{
+      setCloudStatus("Pull failed — " + err.message);
+    });
+}
+// Called at the end of saveData() below when auto-sync is on. Silent on
+// failure (status line only) so it never blocks normal local-only usage.
+// Deliberately does NOT run the conflict confirm() dialog (auto-sync fires
+// unattended) — if the remote has moved since our last known sync, it skips
+// the push and asks for a manual Pull + Push instead of guessing.
+function maybeAutoPush(){
+  const cfg = loadCloudConfig();
+  if(!cfg.autosync || !cfg.endpoint) return;
+  clearTimeout(maybeAutoPush._t);
+  maybeAutoPush._t = setTimeout(()=>{
+    fetch(cfg.endpoint, {method:"GET", headers: cloudHeaders(cfg)})
+      .then(res => res.ok ? res.json() : null)
+      .then(data=>{
+        const remoteUpdatedAt = data && !Array.isArray(data) ? (data.updatedAt || "") : "";
+        if(remoteUpdatedAt && cfg.lastKnownRemoteUpdatedAt && remoteUpdatedAt !== cfg.lastKnownRemoteUpdatedAt){
+          setCloudStatus("Auto-sync paused — cloud copy changed elsewhere. Use Pull, then Push, to resolve.");
+          return;
+        }
+        const updatedAt = new Date().toISOString();
+        return fetch(cfg.endpoint, {
+          method:"PUT",
+          headers: cloudHeaders(cfg),
+          body: JSON.stringify({sites, updatedAt})
+        }).then(res=>{
+          if(res.ok){
+            saveCloudConfig({lastKnownRemoteUpdatedAt: updatedAt});
+            setCloudStatus("Auto-synced at " + new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) + ".");
+          } else setCloudStatus("Auto-sync failed — server responded " + res.status);
+        });
+      }).catch(err=> setCloudStatus("Auto-sync failed — " + err.message));
+  }, 800); // debounce rapid successive edits into one push
+}
+
+/* =================== SITE FILES (uploaded documents) =================== */
+// Actual file bytes are stored in IndexedDB (localStorage is too small for
+// real documents/photos). Only lightweight metadata (name/size/date) lives
+// in each site's `files` array, which IS saved via the normal localStorage
+// save/Export flow. IMPORTANT: Export backup does NOT include the uploaded
+// files themselves (only their names) — they live in this browser only, so
+// treat your flashdisk copies of the actual documents as the real backup.
+const FILES_DB_NAME = "site-tracker-files";
+const FILES_STORE = "files";
+let filesDBPromise = null;
+function openFilesDB(){
+  if(filesDBPromise) return filesDBPromise;
+  filesDBPromise = new Promise((resolve, reject)=>{
+    if(!window.indexedDB){ reject(new Error("This browser doesn't support file storage.")); return; }
+    const req = indexedDB.open(FILES_DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if(!db.objectStoreNames.contains(FILES_STORE)) db.createObjectStore(FILES_STORE, {keyPath:"id"});
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+  return filesDBPromise;
+}
+function storeFileBlob(fileId, blob){
+  return openFilesDB().then(db => new Promise((resolve, reject)=>{
+    const tx = db.transaction(FILES_STORE, "readwrite");
+    tx.objectStore(FILES_STORE).put({id:fileId, blob});
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  }));
+}
+function getFileBlob(fileId){
+  return openFilesDB().then(db => new Promise((resolve, reject)=>{
+    const tx = db.transaction(FILES_STORE, "readonly");
+    const req = tx.objectStore(FILES_STORE).get(fileId);
+    req.onsuccess = () => resolve(req.result ? req.result.blob : null);
+    req.onerror = () => reject(req.error);
+  }));
+}
+function deleteFileBlob(fileId){
+  return openFilesDB().then(db => new Promise((resolve, reject)=>{
+    const tx = db.transaction(FILES_STORE, "readwrite");
+    tx.objectStore(FILES_STORE).delete(fileId);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  }));
+}
+function formatFileSize(bytes){
+  if(bytes < 1024) return bytes + " B";
+  if(bytes < 1024*1024) return (bytes/1024).toFixed(1) + " KB";
+  return (bytes/1024/1024).toFixed(1) + " MB";
+}
+
+/* =================== TEMPLATE LIBRARY (My Documents) =================== */
+// Simple upload-and-keep reference shelf for documents that don't have a
+// generator yet — metadata in localStorage, the actual file bytes in the
+// same IndexedDB store used for site attachments (see FILES_DB_NAME above).
+// Included in "Export full backup (+files)", same caveat as site files:
+// the plain "Export backup" does NOT include these bytes, only names.
+const LIBRARY_KEY = "mydocs-library";
+function loadLibraryMeta(){
+  try{
+    const raw = localStorage.getItem(LIBRARY_KEY);
+    return raw ? JSON.parse(raw) : [];
+  }catch(e){ return []; }
+}
+function saveLibraryMeta(list){
+  try{ localStorage.setItem(LIBRARY_KEY, JSON.stringify(list)); }catch(e){}
+}
+function addLibraryFile(){
+  const labelEl = document.getElementById('lib-upload-label');
+  const fileEl = document.getElementById('lib-upload-file');
+  const file = fileEl.files[0];
+  if(!file){ alert("Choose a file first."); return; }
+  const label = labelEl.value.trim() || file.name;
+  const fileId = "tpl" + Date.now() + "-" + Math.random().toString(36).slice(2,8);
+  storeFileBlob(fileId, file).then(()=>{
+    const list = loadLibraryMeta();
+    list.push({
+      id: fileId, label, fileName: file.name,
+      fileSize: file.size, mimeType: file.type || "application/octet-stream",
+      uploadedAt: new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})
+    });
+    saveLibraryMeta(list);
+    labelEl.value = "";
+    fileEl.value = "";
+    renderLibraryList();
+  }).catch(err=>{
+    alert("Could not save that file — " + err.message);
+  });
+}
+function downloadLibraryFile(id){
+  getFileBlob(id).then(blob=>{
+    if(!blob){ alert("Couldn't find that file — it may not have finished saving, or storage was cleared."); return; }
+    const meta = loadLibraryMeta().find(m=>m.id===id);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = meta ? meta.fileName : "download";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }).catch(err=> alert("Could not open that file — " + err.message));
+}
+function deleteLibraryFile(id){
+  if(!confirm("Remove this file from the library? This can't be undone.")) return;
+  deleteFileBlob(id).finally(()=>{
+    const list = loadLibraryMeta().filter(m=>m.id!==id);
+    saveLibraryMeta(list);
+    renderLibraryList();
+  });
+}
+async function renderLibraryList(){
+  const box = document.getElementById('library-list');
+  if(!box) return;
+  const list = loadLibraryMeta();
+  if(list.length===0){
+    box.innerHTML = '<div style="font-size:12px; color:var(--ink-faint);">Nothing uploaded yet — add your first document above.</div>';
+    return;
+  }
+  box.innerHTML = list.map(m => `
+    <div class="lib-card">
+      <div class="lib-card-head">
+        <div class="lib-card-title">${escapeHtmlGuide(m.label)}</div>
+        <div class="lib-card-meta">${escapeHtmlGuide(m.fileName)} · ${formatFileSize(m.fileSize)} · added ${escapeHtmlGuide(m.uploadedAt)}</div>
+      </div>
+      <div class="lib-preview" id="lib-preview-${m.id}">Loading preview…</div>
+      <div class="btn-row">
+        <button class="btn ghost" style="padding:6px 12px; font-size:11.5px;" onclick="downloadLibraryFile('${m.id}')">Download</button>
+        <button class="btn danger" style="padding:6px 12px; font-size:11.5px;" onclick="deleteLibraryFile('${m.id}')">Remove</button>
+      </div>
+    </div>
+  `).join("");
+
+  // Previews load after the cards are in the DOM — each is its own async
+  // IndexedDB read, so one slow/missing file doesn't block the others.
+  for(const m of list){
+    const slot = document.getElementById('lib-preview-' + m.id);
+    if(!slot) continue;
+    try{
+      const blob = await getFileBlob(m.id);
+      if(!blob){
+        slot.innerHTML = '<div class="lib-preview-empty">File missing from storage — try re-uploading it.</div>';
+        continue;
+      }
+      const url = URL.createObjectURL(blob);
+      if((m.mimeType||"").startsWith("image/")){
+        slot.innerHTML = `<img src="${url}" class="lib-preview-img" alt="${escapeHtmlGuide(m.label)}">`;
+      } else if(m.mimeType === "application/pdf"){
+        slot.innerHTML = `<iframe src="${url}" class="lib-preview-pdf"></iframe>`;
+      } else {
+        const ext = (m.fileName.split('.').pop() || '?').toUpperCase();
+        slot.innerHTML = `
+          <div class="lib-preview-empty">
+            <div class="lib-preview-badge">${escapeHtmlGuide(ext)}</div>
+            No inline preview for this file type — download to open it.
+          </div>
+        `;
+      }
+    }catch(e){
+      slot.innerHTML = '<div class="lib-preview-empty">Couldn\u2019t load a preview for this file.</div>';
+    }
+  }
+}
+
+function uploadSiteFiles(id, input){
+  const site = sites.find(s=>s.id===id);
+  const chosen = Array.from(input.files || []);
+  if(!site || chosen.length===0) return;
+  Promise.all(chosen.map(f=>{
+    const fileId = "f" + Date.now() + "-" + Math.random().toString(36).slice(2,8);
+    return storeFileBlob(fileId, f).then(()=>{
+      site.files.push({
+        id:fileId, name:f.name, size:f.size, type:f.type,
+        dateAdded:new Date().toLocaleString('en-GB',{day:'2-digit',month:'short',year:'2-digit',hour:'2-digit',minute:'2-digit'})
+      });
+    });
+  })).then(()=>{
+    stampField(site, 'files');
+    saveData();
+    render();
+  }).catch(err=>{
+    alert("Could not save file(s) — " + err.message);
+  });
+  input.value = "";
+}
+function downloadSiteFile(id, fileId){
+  const site = sites.find(s=>s.id===id);
+  const meta = site && site.files.find(f=>f.id===fileId);
+  getFileBlob(fileId).then(blob=>{
+    if(!blob){ alert("Couldn't find that file's data in this browser. If this backup/site was imported from another device, the file itself didn't come with it — only its name."); return; }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = meta ? meta.name : "file";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }).catch(err=> alert("Could not open file — " + err.message));
+}
+function deleteSiteFile(id, fileId){
+  if(!confirm("Remove this file from the tracker? This can't be undone.")) return;
+  const site = sites.find(s=>s.id===id);
+  if(!site) return;
+  deleteFileBlob(fileId).then(()=>{
+    site.files = site.files.filter(f=>f.id!==fileId);
+    saveData();
+    render();
+  }).catch(err=> alert("Could not remove file — " + err.message));
+}
+function escapeHtml(str){
+  return (str||"").toString().replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+/* =================== HELPERS =================== */
+function makeCheckSet(labelsObj){
+  const o = {};
+  for(const k in labelsObj) o[k] = {done:false, date:""};
+  return o;
+}
+
+function newSiteObject(id){
+  return {
+    id,
+    name: "Site " + id,
+    company:"", startDate:"", endDate:"", status:"", region:"", desa:"",
+    pic:"", deputy:"", email:"", operator:"",
+    siteCode:"", project:"", korlap:"", siteStatus:"", docStatus:"", tags:"",
+    keterangan:"", takeAction:"", poDate:"", poNumber:"", poAmount:"", addworkNote:"",
+    docs:{
+      izinLokasi:{done:false,date:""}, izinWarga:{done:false,date:""},
+      rfc:{done:false,date:""}, nod:{done:false,date:""},
+      atp:{done:false,date:""}, tii:{done:false,date:""}, rfi:{done:false,date:""}
+    },
+    docs2: makeCheckSet(DOC_LABELS2),
+    docGroups: Object.keys(DOC_GROUPS).reduce((acc,g)=>{ acc[g]=makeCheckSet(DOC_GROUPS[g].items); return acc; }, {}),
+    termin:{1:{done:false,date:""},2:{done:false,date:""},3:{done:false,date:""},
+            4:{done:false,date:""},5:{done:false,date:""},6:{done:false,date:""},7:{done:false,date:""}},
+    addwork:{1:{done:false,date:""},2:{done:false,date:""},3:{done:false,date:""}},
+    progress:"", turnkeyValue:"", addworkValue:"", nextExpectation:"",
+    suggestion:"No action recorded yet.",
+    lastEmailText:"", lastEmailImgId:"", // image blob lives in IndexedDB (see FILES section), not localStorage
+    completed:false, files:[], // files: [{id, name, size, type, dateAdded}] — blobs live in IndexedDB, see FILES section
+    timestamps:{}, // field -> date string
+    history:[] // last snapshot for undo, per input box
+  };
+}
+
+// Fills in any fields missing from sites saved by an older version of this
+// file (e.g. before docs2/docGroups existed), so old data keeps working.
+function ensureSiteShape(site){
+  if(!site.docs2) site.docs2 = makeCheckSet(DOC_LABELS2);
+  else for(const k in DOC_LABELS2) if(!site.docs2[k]) site.docs2[k] = {done:false,date:""};
+
+  if(!site.docGroups) site.docGroups = {};
+  for(const g in DOC_GROUPS){
+    if(!site.docGroups[g]) site.docGroups[g] = makeCheckSet(DOC_GROUPS[g].items);
+    else for(const k in DOC_GROUPS[g].items) if(!site.docGroups[g][k]) site.docGroups[g][k] = {done:false,date:""};
+  }
+  if(site.takeAction===undefined) site.takeAction="";
+  if(site.addworkNote===undefined) site.addworkNote="";
+  if(site.progress===undefined) site.progress="";
+  if(site.nextExpectation===undefined) site.nextExpectation="";
+  if(site.completed===undefined) site.completed=false;
+  if(!site.files) site.files=[];
+  if(site.lastEmailImgId===undefined) site.lastEmailImgId="";
+  if(site.tags===undefined) site.tags="";
+  // Older saves kept the screenshot as a base64 string directly on the site
+  // object (site.lastEmailImg), which bloats localStorage. Move it into
+  // IndexedDB alongside uploaded files, then drop the base64 copy.
+  if(site.lastEmailImg){
+    dataUrlToBlob(site.lastEmailImg).then(blob=>{
+      const fileId = "email-" + site.id;
+      storeFileBlob(fileId, blob).then(()=>{
+        site.lastEmailImgId = fileId;
+        delete site.lastEmailImg;
+        saveData();
+        render();
+      });
+    }).catch(()=>{ delete site.lastEmailImg; });
+  }
+}
+function dataUrlToBlob(dataUrl){
+  return fetch(dataUrl).then(r=>r.blob());
+}
+
+/* =================== BINDER COMPLETION (docs + docs2 + all doc groups, done/total) =================== */
+function binderCompletionPct(site){
+  let done=0, total=0;
+  Object.values(site.docs).forEach(d=>{ total++; if(d.done) done++; });
+  Object.values(site.docs2).forEach(d=>{ total++; if(d.done) done++; });
+  Object.keys(DOC_GROUPS).forEach(g=>{
+    Object.values(site.docGroups[g]).forEach(d=>{ total++; if(d.done) done++; });
+  });
+  return total ? Math.round((done/total)*100) : 0;
+}
+
+/* =================== FINANCIAL HELPERS (Executive Overview) =================== */
+// Parses a stored amount string like "282,852,000" or "Rp254,265,000" into a number.
+function parseAmount(str){
+  if(!str) return 0;
+  const cleaned = String(str).replace(/[^\d.]/g,'');
+  const n = parseFloat(cleaned);
+  return isNaN(n) ? 0 : n;
+}
+// Pulls the leading percentage out of a label like "5% DP" or "60/35% FP".
+// Labels with no "%" (e.g. "Asuransi Polis") return 0 — they're document
+// steps, not payment milestones, so they don't contribute to billed value.
+function pctFromLabel(label){
+  const m = String(label||'').match(/(\d+(?:\.\d+)?)\s*%/);
+  return m ? parseFloat(m[1])/100 : 0;
+}
+// Estimated billed amount for a site = (PO amount x % of done termins) +
+// (addwork value x % of done addwork items). This is an estimate derived
+// from which termin/addwork boxes are ticked — it is not a substitute for
+// actual invoicing records.
+function computeSiteBilled(site){
+  const poVal = parseAmount(site.poAmount);
+  const addVal = parseAmount(site.addworkValue);
+  let terminPct = 0;
+  Object.keys(TERMIN_LABELS).forEach(n=>{
+    if(site.termin[n] && site.termin[n].done) terminPct += pctFromLabel(TERMIN_LABELS[n]);
+  });
+  let addworkPct = 0;
+  Object.keys(ADDWORK_LABELS).forEach(n=>{
+    if(site.addwork[n] && site.addwork[n].done) addworkPct += pctFromLabel(ADDWORK_LABELS[n]);
+  });
+  const billed = poVal*terminPct + addVal*addworkPct;
+  const total = poVal + addVal;
+  return {poVal, addVal, total, billed, outstanding: Math.max(0, total-billed)};
+}
+function formatIDR(n){
+  return "Rp " + Math.round(n).toLocaleString('en-US');
+}
+function formatAmount(n){
+  return new Intl.NumberFormat('id-ID').format(Math.round(n||0));
+}
+// Per-site payment progress for the inline card badge — e.g. Termin 1 (5%)
+// + Termin 2 (10%) done → 15%, and 15% of PO Amount. Separate from
+// computeSiteBilled (which also folds in addwork) so the card badge can
+// show a quick "turnkey payment" read at a glance.
+function computeTerminProgress(site){
+  let pct = 0;
+  Object.keys(TERMIN_LABELS).forEach(n=>{
+    if(site.termin[n] && site.termin[n].done) pct += (TERMIN_PERCENT[n]||0);
+  });
+  const amount = (pct/100) * parseAmount(site.poAmount);
+  return {pct, amount};
+}
+
+/* =================== AUTHOR NAME (who's editing, for the activity log) =================== */
+// Kept in this browser's localStorage, separate from site data — it's a
+// per-device "who am I" label, not something that goes in Export backup.
+function getAuthorName(){
+  try{ return localStorage.getItem(AUTHOR_NAME_KEY) || ""; }catch(e){ return ""; }
+}
+function setAuthorName(name){
+  try{ localStorage.setItem(AUTHOR_NAME_KEY, name || ""); }catch(e){}
+  renderAuthorBadge();
+}
+function promptAuthorName(){
+  const current = getAuthorName();
+  const val = prompt("Your name (shown next to changes you make, in the activity log):", current);
+  if(val === null) return;
+  setAuthorName(val.trim());
+}
+function renderAuthorBadge(){
+  const el = document.getElementById('author-badge');
+  if(!el) return;
+  const name = getAuthorName();
+  el.textContent = name ? ("You: " + name) : "Set your name";
+}
+
+/* =================== ACTIVITY LOG =================== */
+// A simple, capped, append-only log of "who changed what field on which
+// site, when" — separate localStorage key so it doesn't bloat the main
+// sites payload or the Export backup. Best-effort: if it fails to save,
+// the rest of the app keeps working unaffected.
+function loadActivityLog(){
+  try{
+    const raw = localStorage.getItem(ACTIVITY_LOG_KEY);
+    return raw ? JSON.parse(raw) : [];
+  }catch(e){ return []; }
+}
+function logActivity(siteName, fieldKey){
+  try{
+    const log = loadActivityLog();
+    log.push({
+      site: siteName, field: fieldKey, author: getAuthorName() || "Unknown",
+      at: new Date().toLocaleString('en-GB',{day:'2-digit',month:'short',year:'2-digit',hour:'2-digit',minute:'2-digit'})
+    });
+    while(log.length > ACTIVITY_LOG_MAX) log.shift();
+    localStorage.setItem(ACTIVITY_LOG_KEY, JSON.stringify(log));
+  }catch(e){ /* non-critical — skip logging rather than break the save */ }
+}
+function renderActivityList(){
+  const el = document.getElementById('activity-list');
+  if(!el) return;
+  const log = loadActivityLog().slice().reverse().slice(0, 20);
+  if(log.length === 0){
+    el.innerHTML = '<li class="empty-note">No changes logged yet.</li>';
+    return;
+  }
+  el.innerHTML = log.map(e=>`
+    <li>
+      <span class="dot ok"></span>
+      <div>
+        <div>${escapeHtml(e.author)} updated <b>${escapeHtml(e.field)}</b> on <span class="today-site">${escapeHtml(e.site)}</span></div>
+        <div class="today-site">${escapeHtml(e.at)}</div>
+      </div>
+    </li>
+  `).join("");
+}
+
+function stampField(site, fieldKey){
+  site.timestamps[fieldKey] = new Date().toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+  logActivity(site.name || ("Site " + site.id), fieldKey);
+}
+
+// Broad set of words/phrases (English + Bahasa Indonesia) that indicate a
+// checklist item is complete when found near its mention in pasted text —
+// covers common email/chat phrasing like "RFI submitted", "Termin 2 paid",
+// "BAST signed", "approved", "TTD", "diterima", "lunas", etc.
+const DONE_WORDS = /done|selesai|closed|complete|submitted|submit(?:ted)?|paid|lunas|approved|disetujui|signed|ttd|tanda\s?tangan|received|diterima|terkirim|sent|issued|terbit/i;
+
+function findDateInText(text){
+  // dd/mm/yy(yy) or dd-mm-yy(yy)
+  const numeric = text.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+  if(numeric) return numeric[0];
+  // "12 May 2026" / "12 Mei 2026" style — normalize to dd-mm-yy
+  const months = {jan:1,january:1,januari:1,feb:2,february:2,februari:2,mar:3,march:3,maret:3,
+    apr:4,april:4,may:5,mei:5,jun:6,june:6,juni:6,jul:7,july:7,juli:7,aug:8,august:8,agustus:8,
+    sep:9,sept:9,september:9,oct:10,october:10,oktober:10,nov:11,november:11,dec:12,december:12,desember:12};
+  const worded = text.match(/(\d{1,2})\s+([a-zA-Z]+)\s+(\d{2,4})/);
+  if(worded){
+    const mo = months[worded[2].toLowerCase()];
+    if(mo){
+      const yy = worded[3].length>2 ? worded[3].slice(-2) : worded[3];
+      return `${worded[1].padStart(2,'0')}-${String(mo).padStart(2,'0')}-${yy}`;
+    }
+  }
+  return "";
+}
+
+/* =================== TIER 1 PARSER (new site + header updates) =================== */
+function parseTier1(text, site){
+  const t = text.toLowerCase();
+  const grab = (regexes) => {
+    for(const r of regexes){
+      const m = text.match(r);
+      if(m) return m[1].trim();
+    }
+    return null;
+  };
+
+  const company = grab([/by company\s+([a-z0-9 .]+?)(?:,|\.|start| region| status)/i, /company\s+is\s+([a-z0-9 .]+?)(?:,|\.| region)/i]);
+  if(company){ site.company = company; stampField(site,'company'); }
+
+  const dateRange = text.match(/(\d{1,2}-\d{1,2}-\d{2,4})\s*(?:to|-|until)\s*(\d{1,2}-\d{1,2}-\d{2,4})/i);
+  if(dateRange){ site.startDate = dateRange[1]; site.endDate = dateRange[2]; stampField(site,'dates'); }
+
+  const status = grab([/status\s+(active|closed|on\s?hold|pending)/i]);
+  if(status){ site.status = status; stampField(site,'status'); }
+
+  const region = grab([/region\s+([a-z ]+?)(?:,|\.| desa| kota)/i]);
+  if(region){ site.region = region; stampField(site,'region'); }
+
+  const desa = grab([/(?:desa|kota|kelurahan)\s+([a-z0-9 ]+?)(?:,|\.| the| pic| contact)/i]);
+  if(desa){ site.desa = desa; stampField(site,'desa'); }
+
+  const pic = grab([/pic\s+is\s+([a-z ]+?)(?:,|\.| deputy)/i]);
+  if(pic){ site.pic = pic; stampField(site,'pic'); }
+
+  const deputy = grab([/deputy(?:\s+head)?\s+is\s+([a-z ]+?)(?:,|\.| (?:company )?email)/i]);
+  if(deputy){ site.deputy = deputy; stampField(site,'deputy'); }
+
+  const email = grab([/email\s+is\s+([a-z0-9@ ._-]+?)(?:\.|,|$)/i]);
+  if(email){ site.email = email.trim(); stampField(site,'email'); }
+
+  const operator = grab([/operator\s+is\s+([a-z0-9 ]+?)(?:\.|,|$)/i]);
+  if(operator){ site.operator = operator; stampField(site,'operator'); }
+
+  const siteNameMatch = text.match(/site\s+(\d+)/i);
+  if(siteNameMatch){ site.name = "Site " + siteNameMatch[1]; }
+}
+
+/* =================== TIER 2 + 3 PARSER (single command box) =================== */
+function snapshotSite(site){
+  return JSON.parse(JSON.stringify({
+    docs:site.docs, docs2:site.docs2, docGroups:site.docGroups, termin:site.termin, addwork:site.addwork,
+    progress:site.progress, turnkeyValue:site.turnkeyValue, addworkValue:site.addworkValue,
+    nextExpectation:site.nextExpectation, suggestion:site.suggestion,
+    takeAction:site.takeAction, addworkNote:site.addworkNote
+  }));
+}
+
+function windowAfter(text, idx, len){ return text.slice(idx, idx+len); }
+
+function parseCommand(site, rawText){
+  // snapshot for undo — keep a stack, capped at 20 steps
+  site.history.push(snapshotSite(site));
+  if(site.history.length > 20) site.history.shift();
+
+  const text = rawText;
+
+  // --- ADDWORK termin mentions: "addwork termin 2", "addwork 2", "add work 3 done" ---
+  const addworkRegex = /add\s?work\s*(?:termin)?\s*(\d)/gi;
+  let m;
+  while((m = addworkRegex.exec(text)) !== null){
+    const n = m[1];
+    const ctx = windowAfter(text, m.index, 70);
+    const done = DONE_WORDS.test(ctx);
+    const date = findDateInText(ctx);
+    if(site.addwork[n]){
+      if(done) site.addwork[n].done = true;
+      if(date) site.addwork[n].date = date;
+      stampField(site, 'addwork'+n);
+    }
+  }
+
+  // --- Regular termin mentions, skipping ones already consumed as "addwork termin N" ---
+  const terminRegex = /(add\s?work\s*)?termin\s*(\d)/gi;
+  while((m = terminRegex.exec(text)) !== null){
+    if(m[1]) continue; // was an addwork mention, already handled above
+    const n = m[2];
+    const ctx = windowAfter(text, m.index, 70);
+    const done = DONE_WORDS.test(ctx);
+    const date = findDateInText(ctx);
+    if(site.termin[n]){
+      if(done) site.termin[n].done = true;
+      if(date) site.termin[n].date = date;
+      stampField(site, 'termin'+n);
+    }
+  }
+
+  // --- Document keywords: every occurrence, not just first line match.
+  // Covers the main DOC_LABELS checklist, the flat DOC_LABELS2 checklist,
+  // and every item inside the collapsible DOC_GROUPS — so "Smart Ingest"
+  // recognizes any checklist label mentioned in pasted email/chat text,
+  // not just the seven main document types. ---
+  function scanLabelsInText(labelsObj, targetObj, prefix){
+    for(const key in labelsObj){
+      const label = labelsObj[key];
+      const docRegex = new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+      let mm;
+      while((mm = docRegex.exec(text)) !== null){
+        const ctx = windowAfter(text, mm.index, 70);
+        const done = DONE_WORDS.test(ctx);
+        const date = findDateInText(ctx);
+        if(done) targetObj[key].done = true;
+        if(date) targetObj[key].date = date;
+        if(done || date) stampField(site, prefix+key);
+      }
+    }
+  }
+  scanLabelsInText(DOC_LABELS, site.docs, 'doc-');
+  scanLabelsInText(DOC_LABELS2, site.docs2, 'doc2-');
+  for(const g in DOC_GROUPS){
+    scanLabelsInText(DOC_GROUPS[g].items, site.docGroups[g], g+'-');
+  }
+
+  // --- Free-form fields: still processed sentence-by-sentence ---
+  const lines = text.split(/\n|(?<=\.)\s+(?=[A-Z])/).map(l=>l.trim()).filter(Boolean);
+  lines.forEach(line=>{
+    const low = line.toLowerCase();
+
+    // skip lines that were purely termin/addwork/doc updates already handled above
+    const wasStructured = /termin\s*\d/i.test(low) || Object.values(DOC_LABELS).some(l=>low.includes(l.toLowerCase()));
+
+    if(/halt|blocked|terkendala|terhambat|stuck/.test(low)){
+      site.progress = line;
+      stampField(site,'progress');
+      return;
+    }
+    if(/pengecoran|penggalian|erection|excavation|construction/.test(low)){
+      site.progress = line;
+      stampField(site,'progress');
+      return;
+    }
+
+    const addworkValMatch = line.match(/add\s?work (?:value )?(?:is |of )?([\d.,]+)/i);
+    if(addworkValMatch){ site.addworkValue = addworkValMatch[1]; stampField(site,'addworkValue'); return; }
+
+    if(/expect|expectation|next stage/.test(low)){
+      site.nextExpectation = line;
+      stampField(site,'nextExpectation');
+      return;
+    }
+
+    // fallback -> only append as a note if it wasn't already a structured termin/doc update
+    if(!wasStructured){
+      site.progress = site.progress ? site.progress + " | " + line : line;
+      stampField(site,'progress');
+    }
+  });
+
+  recomputeSuggestion(site);
+  saveData();
+  render();
+}
+
+function undoLastCommand(site){
+  const prev = site.history.pop();
+  if(!prev){ return; }
+  site.docs = prev.docs; site.docs2 = prev.docs2; site.docGroups = prev.docGroups;
+  site.termin = prev.termin; site.addwork = prev.addwork;
+  site.progress = prev.progress; site.turnkeyValue = prev.turnkeyValue;
+  site.addworkValue = prev.addworkValue; site.nextExpectation = prev.nextExpectation;
+  site.suggestion = prev.suggestion;
+  site.takeAction = prev.takeAction; site.addworkNote = prev.addworkNote;
+  saveData();
+  render();
+}
+
+/* =================== MANUAL CONTROLS (no parsing needed) =================== */
+function toggleDocManual(id, key){
+  const site = sites.find(s=>s.id===id);
+  site.history.push(snapshotSite(site));
+  if(site.history.length > 20) site.history.shift();
+  site.docs[key].done = !site.docs[key].done;
+  stampField(site, 'doc-'+key);
+  recomputeSuggestion(site);
+  saveData(); render();
+}
+function toggleDoc2Manual(id, key){
+  const site = sites.find(s=>s.id===id);
+  site.history.push(snapshotSite(site));
+  if(site.history.length > 20) site.history.shift();
+  site.docs2[key].done = !site.docs2[key].done;
+  stampField(site, 'doc2-'+key);
+  recomputeSuggestion(site);
+  saveData(); render();
+}
+function toggleGroupItemManual(id, groupKey, itemKey){
+  const site = sites.find(s=>s.id===id);
+  site.history.push(snapshotSite(site));
+  if(site.history.length > 20) site.history.shift();
+  site.docGroups[groupKey][itemKey].done = !site.docGroups[groupKey][itemKey].done;
+  stampField(site, groupKey+'-'+itemKey);
+  recomputeSuggestion(site);
+  saveData(); render();
+}
+function toggleTerminManual(id, n){
+  const site = sites.find(s=>s.id===id);
+  site.history.push(snapshotSite(site));
+  if(site.history.length > 20) site.history.shift();
+  site.termin[n].done = !site.termin[n].done;
+  stampField(site, 'termin'+n);
+  recomputeSuggestion(site);
+  saveData(); render();
+}
+function toggleAddworkManual(id, n){
+  const site = sites.find(s=>s.id===id);
+  site.history.push(snapshotSite(site));
+  if(site.history.length > 20) site.history.shift();
+  site.addwork[n].done = !site.addwork[n].done;
+  stampField(site, 'addwork'+n);
+  recomputeSuggestion(site);
+  saveData(); render();
+}
+function setManualDate(id, kind, key, value){
+  const site = sites.find(s=>s.id===id);
+  if(kind==='doc') site.docs[key].date = value;
+  else if(kind==='doc2') site.docs2[key].date = value;
+  else if(kind==='termin') site.termin[key].date = value;
+  else if(kind==='addwork') site.addwork[key].date = value;
+  stampField(site, kind+'-'+key);
+  saveData();
+}
+function setGroupItemDate(id, groupKey, itemKey, value){
+  const site = sites.find(s=>s.id===id);
+  site.docGroups[groupKey][itemKey].date = value;
+  stampField(site, groupKey+'-'+itemKey);
+  saveData();
+}
+// Expand/collapse a doc group. Tracked in openDocGroups so the group stays
+// open across re-renders (e.g. after ticking a checkbox inside it).
+function toggleDocGroupUI(id, groupKey){
+  const setKey = id+':'+groupKey;
+  if(openDocGroups.has(setKey)) openDocGroups.delete(setKey); else openDocGroups.add(setKey);
+  const el = document.getElementById('docgroup-wrap-'+id+'-'+groupKey);
+  if(el) el.classList.toggle('open');
+}
+function saveIdentityManual(id){
+  const site = sites.find(s=>s.id===id);
+  const fields = ['company','operator','region','desa','korlap','pic','deputy','email',
+                   'siteStatus','docStatus','keterangan','siteCode','project','poDate','poNumber','poAmount',
+                   'addworkValue','startDate','endDate','status','takeAction','addworkNote','tags'];
+  fields.forEach(f=>{
+    const el = document.getElementById('field-'+f+'-'+id);
+    if(el){ site[f] = el.value; }
+  });
+  site.turnkeyValue = site.poAmount; // Turnkey value always mirrors PO Amount, not independently editable
+  stampField(site,'identity');
+  recomputeSuggestion(site);
+  saveData();
+  render();
+}
+function saveTier3Manual(id){
+  const site = sites.find(s=>s.id===id);
+  const progressEl = document.getElementById('field-progress-'+id);
+  const nextEl = document.getElementById('field-nextExpectation-'+id);
+  if(progressEl){ site.progress = progressEl.value; }
+  if(nextEl){ site.nextExpectation = nextEl.value; }
+  stampField(site,'progress');
+  stampField(site,'nextExpectation');
+  recomputeSuggestion(site);
+  saveData();
+  render();
+}
+
+/* =================== SUGGESTION ENGINE =================== */
+// Shared dd-mm-yy(yy) parser. Used anywhere a stored date string needs to
+// become a real Date for comparison (overdue detection, deadline sort).
+function parseSiteDate(str){
+  if(!str) return null;
+  const parts = String(str).split("-");
+  if(parts.length!==3) return null;
+  let [d,m,y] = parts.map(Number);
+  if(!d || !m || isNaN(y)) return null;
+  if(y<100) y+=2000;
+  const date = new Date(y, m-1, d);
+  return isNaN(date.getTime()) ? null : date;
+}
+
+function recomputeSuggestion(site){
+  const low = (site.progress||"").toLowerCase();
+  if(/halt|blocked|terkendala|terhambat|stuck/.test(low)){
+    site.suggestion = "Resolve blocker: " + site.progress;
+    site.urgencyLevel = "urgent";
+    return;
+  }
+
+  // Deadline check — this used to only look at "diffDays >= 0", so once the
+  // end date had already passed it fell straight out of every check below
+  // and quietly reported "on track". Now a passed deadline with incomplete
+  // termins is its own distinct "overdue" state instead of being missed.
+  const end = parseSiteDate(site.endDate);
+  const allTerminDone = Object.values(site.termin).every(t=>t.done);
+  if(end){
+    const diffDays = (end - new Date())/(1000*60*60*24);
+    if(diffDays < 0 && !allTerminDone){
+      site.suggestion = "Overdue: deadline passed " + Math.abs(Math.floor(diffDays)) + " day(s) ago, termins not all complete.";
+      site.urgencyLevel = "overdue";
+      return;
+    }
+    if(diffDays >= 0 && diffDays <= 7 && !allTerminDone){
+      site.suggestion = "Urgent: deadline in " + Math.ceil(diffDays) + " day(s), termins not all complete.";
+      site.urgencyLevel = "urgent";
+      return;
+    }
+  }
+
+  // termin done but next doc missing check (simple heuristic: any termin done, but rfi/tii not done yet triggers binder prep)
+  const anyTerminDone = Object.values(site.termin).some(t=>t.done);
+  const rfiDone = site.docs.rfi.done;
+  if(anyTerminDone && !rfiDone){
+    site.suggestion = "Prepare binder / follow up RFI for this site.";
+    site.urgencyLevel = "warn";
+    return;
+  }
+
+  site.suggestion = "No urgent action — on track.";
+  site.urgencyLevel = "ok";
+}
+
+// Early-warning flags — meant to catch sites drifting toward trouble BEFORE
+// they hit "overdue"/"urgent", so they surface while there's still time to
+// act. Purely heuristic, computed fresh at render time (not cached on the
+// site) from existing checklist/date data. Skipped once a site is already
+// urgent/overdue — at that point the status pill itself is the warning, and
+// piling a flag on top of it is just noise.
+function computeRiskFlags(site){
+  const flags = [];
+  if(site.completed) return flags;
+  if(site.urgencyLevel === 'overdue' || site.urgencyLevel === 'urgent') return flags;
+
+  const end = parseSiteDate(site.endDate);
+  const start = parseSiteDate(site.startDate);
+  const pct = binderCompletionPct(site);
+  const now = new Date();
+
+  if(end){
+    const diffDays = (end - now)/(1000*60*60*24);
+    // Deadline is approaching (1-4 weeks out) but binder progress is lagging.
+    if(diffDays >= 0 && diffDays <= 28 && pct < 50){
+      flags.push("Tight Timeline");
+    }
+  }
+
+  // Two independent signs of a stalled binder: (a) payment progress has
+  // outpaced document progress — termins keep getting paid but the
+  // paperwork isn't catching up — or (b) it's simply been over a month
+  // since the site started with almost no binder progress at all.
+  const terminDoneCount = Object.values(site.termin).filter(t=>t.done).length;
+  const terminRatio = terminDoneCount / Object.keys(TERMIN_LABELS).length;
+  const paymentAheadOfPaperwork = terminRatio >= 0.5 && pct < 30;
+  const longStalledStart = start && ((now - start)/(1000*60*60*24) > 30) && pct < 10;
+  if(paymentAheadOfPaperwork || longStalledStart){
+    flags.push("Stalled Binder");
+  }
+
+  return flags;
+}
+
+/* =================== ADD NEW SITE =================== */
+function toggleAddPanel(){
+  const p = document.getElementById('add-site-panel');
+  p.style.display = p.style.display === 'block' ? 'none' : 'block';
+}
+function addNewSite(){
+  const text = document.getElementById('add-site-input').value.trim();
+  if(!text) return;
+  const id = Date.now();
+  const site = newSiteObject(id);
+  parseTier1(text, site);
+  recomputeSuggestion(site);
+  sites.push(site);
+  document.getElementById('add-site-input').value = "";
+  document.getElementById('add-site-panel').style.display = 'none';
+  saveData();
+  render();
+}
+
+/* =================== SITE ACTIONS (called from rendered HTML) =================== */
+function toggleSite(id){
+  if(openCards.has(id)) openCards.delete(id); else openCards.add(id);
+  const card = document.getElementById('card-'+id);
+  if(card) card.classList.toggle('open');
+}
+
+function toggleSiteCompleted(id){
+  const site = sites.find(s=>s.id===id);
+  if(!site) return;
+  site.completed = !site.completed;
+  stampField(site, 'completed');
+  saveData();
+  render();
+}
+
+function deleteSite(id){
+  const site = sites.find(s=>s.id===id);
+  if(!site) return;
+  if(!confirm(`Delete "${site.name}" permanently? This removes all its data (and any uploaded documents) and can't be undone.\n\nTip: use "Export backup" first if you want to keep a copy.`)) return;
+  (site.files||[]).forEach(f => deleteFileBlob(f.id).catch(()=>{}));
+  sites = sites.filter(s=>s.id!==id);
+  openCards.delete(id);
+  saveData();
+  render();
+}
+
+function submitCommand(id){
+  const site = sites.find(s=>s.id===id);
+  const box = document.getElementById('cmd-'+id);
+  const text = box.value.trim();
+  if(!text) return;
+  parseCommand(site, text);
+  box.value = "";
+}
+
+function submitTier1Update(id){
+  const site = sites.find(s=>s.id===id);
+  const box = document.getElementById('tier1cmd-'+id);
+  const text = box.value.trim();
+  if(!text) return;
+  parseTier1(text, site);
+  box.value = "";
+  saveData();
+  render();
+}
+
+function toggleSummary(id){
+  const box = document.getElementById('summary-'+id);
+  if(box.style.display === 'block'){ box.style.display='none'; return; }
+  const site = sites.find(s=>s.id===id);
+  box.textContent = buildSiteSummary(site);
+  box.style.display = 'block';
+}
+
+function buildSiteSummary(site){
+  const terminDone = Object.entries(site.termin).filter(([k,v])=>v.done).map(([k])=>k);
+  const docsDone = Object.entries(site.docs).filter(([k,v])=>v.done).map(([k])=>DOC_LABELS[k]);
+  let lines = [];
+  lines.push(`${site.name} — ${site.company||"no company set"} (${site.operator||"operator n/a"})`);
+  lines.push(`Region: ${site.region||"-"} ${site.desa? "/ "+site.desa : ""}`);
+  lines.push(`Termin done: ${terminDone.length ? terminDone.join(", ") : "none yet"}`);
+  lines.push(`Documents done: ${docsDone.length ? docsDone.join(", ") : "none yet"}`);
+  lines.push(`Progress: ${site.progress || "not recorded"}`);
+  lines.push(`Suggestion: ${site.suggestion}`);
+  return lines.join("\n");
+}
+
+function handleEmailText(id){
+  const site = sites.find(s=>s.id===id);
+  const box = document.getElementById('emailtext-'+id);
+  site.lastEmailText = box.value;
+  stampField(site,'lastEmail');
+  saveData();
+  render();
+}
+
+// Smart Ingest — runs the same command parser used by "Update this site" on
+// whatever's in the Last Email box, so a pasted email/chat thread can update
+// checkmarks, dates, and progress notes in one click instead of retyping it
+// as a manual command.
+function smartIngestEmail(id){
+  const site = sites.find(s=>s.id===id);
+  const box = document.getElementById('emailtext-'+id);
+  const text = box.value.trim();
+  if(!text){ alert("Paste the email or chat text into the box first."); return; }
+  site.lastEmailText = text;
+  stampField(site,'lastEmail');
+  parseCommand(site, text); // parseCommand already calls saveData()/render()
+}
+
+function handleEmailImage(id, input){
+  const site = sites.find(s=>s.id===id);
+  const file = input.files[0];
+  if(!file) return;
+  const fileId = "email-" + site.id;
+  storeFileBlob(fileId, file).then(()=>{
+    site.lastEmailImgId = fileId;
+    stampField(site,'lastEmail');
+    saveData();
+    render();
+  }).catch(err=>alert("Could not save image — " + err.message));
+}
+// Email preview images live in IndexedDB (async), so the card HTML renders a
+// placeholder <img> and this fills in the src afterward for every open card.
+function loadEmailPreviews(){
+  sites.forEach(site=>{
+    if(!site.lastEmailImgId) return;
+    const img = document.getElementById('email-preview-'+site.id);
+    if(!img) return;
+    getFileBlob(site.lastEmailImgId).then(blob=>{
+      if(blob) img.src = URL.createObjectURL(blob);
+    }).catch(()=>{});
+  });
+}
+
+/* =================== PRINT / PDF SITE REPORT =================== */
+// Builds a clean 1-page summary into #print-area and opens the browser
+// print dialog — "Save as PDF" in that dialog is how this doubles as a PDF
+// exporter, with no extra library needed.
+function printSiteReport(id){
+  const site = sites.find(s=>s.id===id);
+  if(!site) return;
+  const pct = binderCompletionPct(site);
+
+  const terminItems = Object.keys(TERMIN_LABELS).map(n=>{
+    const t = site.termin[n];
+    return `<li class="${t.done?'done':'pending'}">Termin ${n} — ${TERMIN_LABELS[n]}${t.done? ' — done'+(t.date?` (${escapeHtml(t.date)})`:'') : ' — outstanding'}</li>`;
+  }).join("");
+  const addworkItems = Object.keys(ADDWORK_LABELS).map(n=>{
+    const t = site.addwork[n];
+    return `<li class="${t.done?'done':'pending'}">Addwork ${n} — ${ADDWORK_LABELS[n]}${t.done? ' — done'+(t.date?` (${escapeHtml(t.date)})`:'') : ' — outstanding'}</li>`;
+  }).join("");
+
+  const bastGroup = DOC_GROUPS.bastTurnkey;
+  const bastState = site.docGroups.bastTurnkey;
+  const bastItems = Object.keys(bastGroup.items).map(k=>{
+    const d = bastState[k];
+    return `<li class="${d.done?'done':'pending'}">${bastGroup.items[k]}${d.done? ' — done'+(d.date?` (${escapeHtml(d.date)})`:'') : ' — outstanding'}</li>`;
+  }).join("");
+
+  const kv = (label,val) => `<div><span class="k">${label}:</span>${escapeHtml(val||'—')}</div>`;
+
+  const html = `
+    <div class="pr-title">${escapeHtml(site.name)}</div>
+    <div class="pr-sub">${escapeHtml(site.siteCode||'')} · Report generated ${new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}</div>
+
+    <div class="pr-section-title">Identity</div>
+    <div class="pr-kv">
+      ${kv('Company',site.company)} ${kv('Operator',site.operator)}
+      ${kv('Project',site.project)} ${kv('Region',site.region)}
+      ${kv('Desa/Kota',site.desa)} ${kv('Korlap/Mandor',site.korlap)}
+      ${kv('PIC Verificator',site.pic)} ${kv('Deputy',site.deputy)}
+      ${kv('Site Status',site.siteStatus)} ${kv('Doc Status',site.docStatus)}
+      ${kv('PO Number',site.poNumber)} ${kv('PO Date',site.poDate)}
+      ${kv('PO Amount',site.poAmount)} ${kv('Addwork Value',site.addworkValue)}
+    </div>
+
+    <div class="pr-section-title">Binder completion — ${pct}%</div>
+    <div class="pr-bar-track"><div class="pr-bar-fill" style="width:${pct}%"></div></div>
+
+    <div class="pr-section-title">Termin &amp; Addwork status</div>
+    <ul class="pr-list">${terminItems}${addworkItems}</ul>
+
+    <div class="pr-section-title">BAST Turnkey Handover</div>
+    <ul class="pr-list">${bastItems}</ul>
+
+    <div class="pr-section-title">Notes</div>
+    <div class="pr-kv" style="grid-template-columns:1fr;">
+      ${kv('Take Action',site.takeAction)}
+      ${kv('Progress',site.progress)}
+      ${kv('Next Expectation',site.nextExpectation)}
+      ${kv('Addwork Note',site.addworkNote)}
+    </div>
+
+    <div class="pr-footer">Generated from Site Tracker. Figures reflect checklist state at time of printing.</div>
+  `;
+  document.getElementById('print-area').innerHTML = html;
+  window.print();
+}
+window.addEventListener('afterprint', ()=>{
+  const el = document.getElementById('print-area');
+  if(el) el.innerHTML = '';
+});
+
+/* =================== RENDER =================== */
+function render(){
+  renderOverview();
+  renderActivityList();
+  renderExecutiveOverview();
+  renderClosingProgress();
+  renderSiteList();
+  loadEmailPreviews();
+  renderAuthorBadge();
+}
+
+/* =================== VIEW SWITCHING (Site Tracker <-> Document Guide) =================== */
+function switchView(view){
+  const views = {sites:'view-sites', guide:'view-guide', mydocs:'view-mydocs'};
+  const tabs = {sites:'nav-tab-sites', guide:'nav-tab-guide', mydocs:'nav-tab-mydocs'};
+  Object.keys(views).forEach(v=>{
+    document.getElementById(views[v]).style.display = (v===view) ? 'block' : 'none';
+    document.getElementById(tabs[v]).classList.toggle('active', v===view);
+  });
+  if(view === 'guide') renderDocGuide();
+  if(view === 'mydocs') renderLibraryList();
+}
+
+/* =================== DOCUMENT GUIDE =================== */
+let openGuideGroups = new Set(); // only tracks the collapsible bulk groups (pln, warranty, hse, etc.)
+function toggleGuideGroup(key){
+  if(openGuideGroups.has(key)) openGuideGroups.delete(key);
+  else openGuideGroups.add(key);
+  renderDocGuide();
+}
+function escapeHtmlGuide(s){
+  const d = document.createElement('div');
+  d.textContent = s == null ? '' : String(s);
+  return d.innerHTML;
+}
+function renderDocGuide(){
+  const box = document.getElementById('guide-groups');
+  if(!box) return;
+  const query = (document.getElementById('guide-search').value || '').trim().toLowerCase();
+  const searching = query.length > 0;
+
+  const html = Object.entries(DOC_GUIDE).map(([groupKey, group])=>{
+    const matched = group.items.filter(it=>{
+      if(!searching) return true;
+      const hay = (it.name + ' ' + group.code + ' ' + it.what + ' ' + it.when + ' ' + it.req).toLowerCase();
+      return hay.includes(query);
+    });
+    if(searching && matched.length === 0) return '';
+    const isOpen = !group.collapsible || searching || openGuideGroups.has(groupKey);
+    const canToggle = group.collapsible && !searching;
+    const itemsHtml = matched.map(it => `
+      <div class="guide-item">
+        <div class="guide-item-name">
+          ${escapeHtmlGuide(it.name)}
+          ${group.code ? `<span class="guide-code">${escapeHtmlGuide(group.code)}</span>` : ''}
+        </div>
+        <div class="guide-item-row"><b>What it is:</b> ${escapeHtmlGuide(it.what)}</div>
+        <div class="guide-item-row"><b>When to request:</b> ${escapeHtmlGuide(it.when)}</div>
+        <div class="guide-item-row"><b>Requirements:</b> ${escapeHtmlGuide(it.req)}</div>
+      </div>
+    `).join("");
+    const noteHtml = group.note ? `<div class="guide-item-row" style="margin-top:10px; font-style:italic;">${escapeHtmlGuide(group.note)}</div>` : '';
+    return `
+      <div class="guide-group ${isOpen ? 'open' : ''}">
+        <div class="guide-group-header" style="${canToggle ? '' : 'cursor:default;'}" onclick="${canToggle ? `toggleGuideGroup('${groupKey}')` : ''}">
+          <span>${escapeHtmlGuide(group.label)}<span class="guide-group-count">${matched.length} document${matched.length===1?'':'s'}</span></span>
+          <span class="guide-group-arrow">${canToggle ? '▶' : ''}</span>
+        </div>
+        <div class="guide-group-body" style="${isOpen ? 'display:block;' : ''}">
+          ${itemsHtml}
+          ${noteHtml}
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  const anyMatch = Object.values(DOC_GUIDE).some(group => !searching || group.items.some(it=>{
+    const hay = (it.name + ' ' + group.code + ' ' + it.what + ' ' + it.when + ' ' + it.req).toLowerCase();
+    return hay.includes(query);
+  }));
+
+  box.innerHTML = anyMatch ? html : '<div class="guide-empty">No documents match that search.</div>';
+}
+
+
+function renderOverview(){
+  const summaryEl = document.getElementById('overview-summary');
+  const todayEl = document.getElementById('today-list');
+
+  if(sites.length===0){
+    summaryEl.textContent = "No sites yet — add your first site below.";
+    todayEl.innerHTML = '<li class="empty-note">Nothing to show yet.</li>';
+    return;
+  }
+
+  const active = sites.filter(s=>!s.completed);
+  const overdueCount = active.filter(s=>s.urgencyLevel==='overdue').length;
+  const urgentCount = active.filter(s=>s.urgencyLevel==='urgent').length;
+  const warnCount = active.filter(s=>s.urgencyLevel==='warn').length;
+  const okCount = active.filter(s=>s.urgencyLevel==='ok').length;
+  const completedCount = sites.length - active.length;
+  summaryEl.innerHTML = `Tracking <strong>${sites.length}</strong> site(s) — `+
+    (overdueCount ? `<span style="color:#fff; background:var(--urgent); padding:1px 6px; border-radius:4px;">${overdueCount} overdue</span>, ` : ``)+
+    `<span style="color:var(--urgent)">${urgentCount} urgent</span>, `+
+    `<span style="color:var(--warn)">${warnCount} need attention</span>, `+
+    `<span style="color:var(--ok)">${okCount} on track</span>`+
+    (completedCount ? `, <span style="color:var(--ink-faint)">${completedCount} completed</span>.` : `.`);
+
+  const sorted = [...sites].sort((a,b)=>{
+    if(a.completed !== b.completed) return a.completed ? 1 : -1;
+    const order = {overdue:0, urgent:1, warn:2, ok:3};
+    return (order[a.urgencyLevel]??4) - (order[b.urgencyLevel]??4);
+  });
+
+  todayEl.innerHTML = sorted.map(s=>`
+    <li>
+      <span class="dot ${s.completed ? 'completed' : (s.urgencyLevel||'ok')}"></span>
+      <div>
+        <div class="today-site">${s.completed?'✓ ':''}${s.name}</div>
+        ${s.completed ? 'Marked completed.' : (s.suggestion || "No action recorded yet.")}
+      </div>
+    </li>
+  `).join("");
+}
+
+// Executive Overview — total PO value vs. estimated billed, outstanding
+// cash-flow projection (largest pending amounts first), and a regional
+// completion-rate comparison. Everything here is derived from the same
+// per-site data already tracked elsewhere (PO/addwork amounts, ticked
+// termin/addwork boxes, binder checklists) — nothing new to fill in.
+function renderExecutiveOverview(){
+  const box = document.getElementById('executive-box');
+  if(!box) return;
+  if(sites.length===0){
+    box.innerHTML = '<div class="empty-note">No sites yet.</div>';
+    return;
+  }
+  const active = sites.filter(s=>!s.completed);
+  const pool = active.length ? active : sites;
+
+  const fins = pool.map(s=>({site:s, ...computeSiteBilled(s)}));
+  const totalPO = fins.reduce((sum,f)=>sum+f.total,0);
+  const totalBilled = fins.reduce((sum,f)=>sum+f.billed,0);
+  const totalOutstanding = fins.reduce((sum,f)=>sum+f.outstanding,0);
+  const billedPct = totalPO ? Math.round((totalBilled/totalPO)*100) : 0;
+
+  const pending = fins.filter(f=>f.outstanding > 0)
+    .sort((a,b)=>b.outstanding-a.outstanding)
+    .slice(0,5);
+  const pendingRows = pending.length ? pending.map(f=>`
+    <div class="row"><span class="k">${escapeHtml(f.site.name)}${f.site.endDate?` <span style="color:var(--ink-faint)">(due ${escapeHtml(f.site.endDate)})</span>`:''}</span>
+    <span class="v">${formatIDR(f.outstanding)}</span></div>`).join("")
+    : `<div class="empty-note" style="font-size:12.5px;">No outstanding balances estimated.</div>`;
+
+  // Regional completion-rate comparison (binder completion % averaged per region)
+  const byRegion = {};
+  pool.forEach(s=>{
+    const key = (s.region && s.region.trim()) || "Unspecified";
+    if(!byRegion[key]) byRegion[key] = {count:0, pctSum:0};
+    byRegion[key].count++;
+    byRegion[key].pctSum += binderCompletionPct(s);
+  });
+  const regionCompletionRows = Object.keys(byRegion).sort((a,b)=>
+    (byRegion[b].pctSum/byRegion[b].count) - (byRegion[a].pctSum/byRegion[a].count)
+  ).map(r=>{
+    const avg = Math.round(byRegion[r].pctSum / byRegion[r].count);
+    return `<div class="row"><span class="k">${escapeHtml(r)} <span style="color:var(--ink-faint)">(${byRegion[r].count})</span></span><span class="v">${avg}% avg. binder</span></div>`;
+  }).join("");
+
+  box.innerHTML = `
+    <div class="fin-grid">
+      <div class="fin-stat"><div class="fin-label">Total PO value (turnkey + addwork)</div><div class="fin-value">${formatIDR(totalPO)}</div></div>
+      <div class="fin-stat"><div class="fin-label">Est. billed</div><div class="fin-value">${formatIDR(totalBilled)} <span style="color:var(--ink-faint); font-size:12px;">(${billedPct}%)</span></div></div>
+      <div class="fin-stat"><div class="fin-label">Est. outstanding</div><div class="fin-value">${formatIDR(totalOutstanding)}</div></div>
+    </div>
+    <div class="field-label" style="margin-top:14px;">Largest pending balances</div>
+    <div class="free-fields">${pendingRows}</div>
+    <div class="field-label" style="margin-top:14px;">Completion rate by region</div>
+    <div class="free-fields">${regionCompletionRows}</div>
+    <div style="font-size:11px; color:var(--ink-faint); margin-top:10px; line-height:1.5;">
+      Billed/outstanding figures are estimates based on which termin &amp; addwork boxes are ticked, weighted by their payment percentage — not a substitute for actual invoicing records.
+    </div>
+  `;
+}
+
+// Closing Progress dashboard — average binder completion, plus counts of
+// sites that have finished BAST Turnkey handover / Closing Binder CME.
+// All pulled straight from the same checklist data already on each site.
+function renderClosingProgress(){
+  const box = document.getElementById('financials-box');
+  if(!box) return;
+  if(sites.length===0){
+    box.innerHTML = '<div class="empty-note">No sites yet.</div>';
+    return;
+  }
+  const active = sites.filter(s=>!s.completed);
+  const pool = active.length ? active : sites;
+  const avgPct = Math.round(pool.reduce((sum,s)=>sum+binderCompletionPct(s),0) / pool.length);
+
+  const bastDone = pool.filter(s=>Object.values(s.docGroups.bastTurnkey).every(d=>d.done)).length;
+  const binderDone = pool.filter(s=>Object.values(s.docGroups.closingBinder).every(d=>d.done)).length;
+
+  const byRegion = {};
+  pool.forEach(s=>{
+    const key = (s.region && s.region.trim()) || "Unspecified";
+    byRegion[key] = (byRegion[key]||0) + 1;
+  });
+  const regionRows = Object.keys(byRegion).sort().map(r=>
+    `<div class="row"><span class="k">${escapeHtml(r)}</span><span class="v">${byRegion[r]} site(s)</span></div>`
+  ).join("");
+
+  box.innerHTML = `
+    <div class="fin-grid">
+      <div class="fin-stat"><div class="fin-label">Avg. binder completion</div><div class="fin-value">${avgPct}%</div></div>
+      <div class="fin-stat"><div class="fin-label">BAST Turnkey handed over</div><div class="fin-value">${bastDone} / ${pool.length}</div></div>
+      <div class="fin-stat"><div class="fin-label">Closing Binder signed</div><div class="fin-value">${binderDone} / ${pool.length}</div></div>
+    </div>
+    <div class="field-label" style="margin-top:14px;">Sites by region</div>
+    <div class="free-fields">${regionRows}</div>
+  `;
+}
+
+// Search box + filter/sort dropdowns live outside #site-list so re-renders
+// (e.g. after toggling a checkbox) don't wipe what the user typed.
+// Fills a <select>'s options from the distinct values of `field` across all
+// sites, keeping whatever the user currently has selected (falls back to
+// "all" if that value no longer exists, e.g. after editing a site).
+function populateFilterDropdown(selectId, field, allLabel){
+  const el = document.getElementById(selectId);
+  if(!el) return;
+  const current = el.value || 'all';
+  const values = [...new Set(sites.map(s=>(s[field]||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  const optionsHtml = `<option value="all">${allLabel}</option>` +
+    values.map(v=>`<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("");
+  if(el.dataset.optionsKey !== optionsHtml){
+    el.innerHTML = optionsHtml;
+    el.dataset.optionsKey = optionsHtml;
+    el.value = values.includes(current) || current==='all' ? current : 'all';
+  }
+}
+function clearAdvancedFilters(){
+  ['site-filter-operator','site-filter-region','site-filter-korlap','site-filter-pic'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.value = 'all';
+  });
+  renderSiteList();
+}
+
+function renderSiteList(){
+  const list = document.getElementById('site-list');
+  const searchEl = document.getElementById('site-search');
+  const filterEl = document.getElementById('site-filter');
+  const sortEl = document.getElementById('site-sort');
+  const query = searchEl ? searchEl.value.trim().toLowerCase() : "";
+  const filter = filterEl ? filterEl.value : "all";
+  const sortBy = sortEl ? sortEl.value : "urgency";
+
+  populateFilterDropdown('site-filter-operator','operator','All operators');
+  populateFilterDropdown('site-filter-region','region','All regions');
+  populateFilterDropdown('site-filter-korlap','korlap','All Korlap/Mandor');
+  populateFilterDropdown('site-filter-pic','pic','All PIC');
+  const opFilter = document.getElementById('site-filter-operator')?.value || 'all';
+  const regionFilter = document.getElementById('site-filter-region')?.value || 'all';
+  const korlapFilter = document.getElementById('site-filter-korlap')?.value || 'all';
+  const picFilter = document.getElementById('site-filter-pic')?.value || 'all';
+
+  if(sites.length === 0){
+    list.innerHTML = "";
+    document.getElementById('site-count').textContent = "";
+    return;
+  }
+
+  let filtered = sites.filter(site=>{
+    if(query){
+      const hay = [site.name, site.company, site.operator, site.region, site.siteCode, site.korlap, site.pic, site.deputy, site.tags]
+        .filter(Boolean).join(" ").toLowerCase();
+      if(!hay.includes(query)) return false;
+    }
+    if(opFilter!=='all' && (site.operator||'').trim() !== opFilter) return false;
+    if(regionFilter!=='all' && (site.region||'').trim() !== regionFilter) return false;
+    if(korlapFilter!=='all' && (site.korlap||'').trim() !== korlapFilter) return false;
+    if(picFilter!=='all' && (site.pic||'').trim() !== picFilter) return false;
+    if(filter==='completed') return site.completed;
+    if(filter!=='all'){
+      if(site.completed) return false;
+      return (site.urgencyLevel||'ok') === filter;
+    }
+    return true;
+  });
+
+  const order = {overdue:0, urgent:1, warn:2, ok:3};
+  filtered.sort((a,b)=>{
+    if(sortBy==='name') return (a.name||"").localeCompare(b.name||"");
+    if(sortBy==='region') return (a.region||"").localeCompare(b.region||"");
+    if(sortBy==='company') return (a.company||"").localeCompare(b.company||"");
+    if(sortBy==='deadline'){
+      const da = parseSiteDate(a.endDate), db = parseSiteDate(b.endDate);
+      if(!da && !db) return 0;
+      if(!da) return 1;
+      if(!db) return -1;
+      return da - db;
+    }
+    // default: urgency
+    if(a.completed !== b.completed) return a.completed ? 1 : -1;
+    return (order[a.urgencyLevel]??4) - (order[b.urgencyLevel]??4);
+  });
+
+  document.getElementById('site-count').textContent =
+    filtered.length === sites.length ? `(${sites.length})` : `(${filtered.length}/${sites.length})`;
+
+  if(filtered.length===0){
+    list.innerHTML = '<div class="empty-note">No sites match your search or filter.</div>';
+    return;
+  }
+  list.innerHTML = filtered.map(site => renderSiteCard(site)).join("");
+}
+
+function manualField(label, key, site){
+  const val = (site[key]||'').toString().replace(/"/g,'&quot;');
+  return `<div><span class="k">${label}</span><input id="field-${key}-${site.id}" value="${val}"
+    style="background:var(--panel-2); border:1px solid var(--line); color:var(--ink); border-radius:5px; padding:4px 7px; font-size:12.5px; width:100%; max-width:180px;"></div>`;
+}
+function manualTextarea(label, key, site, placeholder){
+  const val = (site[key]||'').toString().replace(/</g,'&lt;');
+  return `<div class="field-label">${label}</div>
+    <textarea id="field-${key}-${site.id}" placeholder="${placeholder||''}" style="min-height:54px;">${val}</textarea>`;
+}
+
+function renderDocGroup(site, groupKey, isOverdue){
+  const group = DOC_GROUPS[groupKey];
+  const state = site.docGroups[groupKey];
+  const doneCount = Object.keys(group.items).filter(k=>state[k].done).length;
+  const total = Object.keys(group.items).length;
+  const isOpen = openDocGroups.has(site.id+':'+groupKey);
+  const rows = Object.keys(group.items).map(k=>{
+    const d = state[k];
+    const rowOverdue = isOverdue && !d.done;
+    return `<div class="check-row${rowOverdue?' overdue-row':''}">
+      <div class="mark ${d.done?'done':'pending'}" style="cursor:pointer" onclick="toggleGroupItemManual(${site.id},'${groupKey}','${k}')">${d.done?'✓':''}</div>
+      <span>${group.items[k]}</span>
+      <input class="check-date" style="background:transparent;border:none;color:var(--ink-faint);width:70px;text-align:right;font-family:var(--mono);font-size:11px;"
+        value="${d.date||''}" placeholder="dd-mm-yy" onchange="setGroupItemDate(${site.id},'${groupKey}','${k}',this.value)">
+    </div>`;
+  }).join("");
+
+  return `
+  <div class="doc-group${isOpen?' open':''}" id="docgroup-wrap-${site.id}-${groupKey}">
+    <div class="doc-group-head" onclick="toggleDocGroupUI(${site.id},'${groupKey}')">
+      <span class="chevron">▶</span>
+      <span>${group.label}</span>
+      <span class="doc-group-count">${doneCount}/${total}</span>
+    </div>
+    <div class="doc-group-body">
+      ${rows}
+      ${group.note ? `<div class="doc-group-note">${group.note}</div>` : ''}
+    </div>
+  </div>`;
+}
+
+function renderSiteCard(site){
+  const level = site.completed ? 'completed' : (site.urgencyLevel || 'ok');
+  const isOverdue = !site.completed && site.urgencyLevel === 'overdue';
+  const isCardOpen = openCards.has(site.id);
+  const filesHtml = (site.files && site.files.length) ? site.files.map(f => `
+    <div class="file-row">
+      <span class="file-name">${escapeHtml(f.name)}</span>
+      <span class="file-meta">${formatFileSize(f.size)} · ${f.dateAdded}</span>
+      <button class="btn ghost" style="padding:3px 8px; font-size:11px;" onclick="downloadSiteFile(${site.id},'${f.id}')">Download</button>
+      <button class="btn ghost" style="padding:3px 8px; font-size:11px;" onclick="deleteSiteFile(${site.id},'${f.id}')">Remove</button>
+    </div>`).join("") : '<div class="empty-note" style="font-size:12.5px;">No documents uploaded yet.</div>';
+  const terminChecks = Object.keys(TERMIN_LABELS).map(n=>{
+    const t = site.termin[n];
+    const rowOverdue = isOverdue && !t.done;
+    return `<div class="check-row${rowOverdue?' overdue-row':''}">
+      <div class="mark ${t.done?'done':'pending'}" style="cursor:pointer" onclick="toggleTerminManual(${site.id},${n})">${t.done?'✓':''}</div>
+      <span>Termin ${n} — ${TERMIN_LABELS[n]}</span>
+      <input class="check-date" style="background:transparent;border:none;color:var(--ink-faint);width:70px;text-align:right;font-family:var(--mono);font-size:11px;"
+        value="${t.date||''}" placeholder="dd-mm-yy" onchange="setManualDate(${site.id},'termin','${n}',this.value)">
+    </div>`;
+  }).join("");
+
+  const addworkChecks = Object.keys(ADDWORK_LABELS).map(n=>{
+    const t = site.addwork[n];
+    const rowOverdue = isOverdue && !t.done;
+    return `<div class="check-row${rowOverdue?' overdue-row':''}">
+      <div class="mark ${t.done?'done':'pending'}" style="cursor:pointer" onclick="toggleAddworkManual(${site.id},${n})">${t.done?'✓':''}</div>
+      <span>Addwork ${n} — ${ADDWORK_LABELS[n]}</span>
+      <input class="check-date" style="background:transparent;border:none;color:var(--ink-faint);width:70px;text-align:right;font-family:var(--mono);font-size:11px;"
+        value="${t.date||''}" placeholder="dd-mm-yy" onchange="setManualDate(${site.id},'addwork','${n}',this.value)">
+    </div>`;
+  }).join("");
+
+  const docChecks = Object.keys(DOC_LABELS).map(key=>{
+    const d = site.docs[key];
+    const rowOverdue = isOverdue && !d.done;
+    return `<div class="check-row${rowOverdue?' overdue-row':''}">
+      <div class="mark ${d.done?'done':'pending'}" style="cursor:pointer" onclick="toggleDocManual(${site.id},'${key}')">${d.done?'✓':''}</div>
+      <span>${DOC_LABELS[key]}</span>
+      <input class="check-date" style="background:transparent;border:none;color:var(--ink-faint);width:70px;text-align:right;font-family:var(--mono);font-size:11px;"
+        value="${d.date||''}" placeholder="dd-mm-yy" onchange="setManualDate(${site.id},'doc','${key}',this.value)">
+    </div>`;
+  }).join("");
+
+  const docChecks2 = Object.keys(DOC_LABELS2).map(key=>{
+    const d = site.docs2[key];
+    const rowOverdue = isOverdue && !d.done;
+    return `<div class="check-row${rowOverdue?' overdue-row':''}">
+      <div class="mark ${d.done?'done':'pending'}" style="cursor:pointer" onclick="toggleDoc2Manual(${site.id},'${key}')">${d.done?'✓':''}</div>
+      <span>${DOC_LABELS2[key]}</span>
+      <input class="check-date" style="background:transparent;border:none;color:var(--ink-faint);width:70px;text-align:right;font-family:var(--mono);font-size:11px;"
+        value="${d.date||''}" placeholder="dd-mm-yy" onchange="setManualDate(${site.id},'doc2','${key}',this.value)">
+    </div>`;
+  }).join("");
+
+  const docGroupsHtml = Object.keys(DOC_GROUPS).map(g => renderDocGroup(site, g, isOverdue)).join("");
+
+  const binderPct = binderCompletionPct(site);
+  const riskTagsHtml = computeRiskFlags(site).map(f=>`<span class="risk-tag">⚠ ${f}</span>`).join("");
+  const terminProgress = computeTerminProgress(site);
+  const tagsHtml = (site.tags||'').split(',').map(t=>t.trim()).filter(Boolean)
+    .map(t=>`<span class="tag-chip">${escapeHtml(t)}</span>`).join("");
+
+  return `
+  <div class="site-card${isCardOpen?' open':''}${site.completed?' completed':''}" id="card-${site.id}">
+    <div class="site-head" onclick="toggleSite(${site.id})">
+      <span class="chevron">▶</span>
+      <div>
+        <div class="site-name">${site.completed?'✓ ':''}${site.name}</div>
+        <div class="site-sub">${site.company||'no company'} · ${site.operator||'no operator'} · ${site.status||'no status'}</div>
+        ${riskTagsHtml ? `<div>${riskTagsHtml}</div>` : ''}
+        ${tagsHtml ? `<div>${tagsHtml}</div>` : ''}
+      </div>
+      <div class="site-edge">
+        <span class="status-pill ${level}">${level==='overdue' ? '⚠ overdue' : level}</span>
+        <span class="termin-progress-badge">${terminProgress.pct}% paid${site.poAmount ? ' · Rp '+formatAmount(terminProgress.amount) : ''}</span>
+      </div>
+    </div>
+    <div class="site-body">
+
+      <div class="tier">
+        <div class="tier-title">Tier 1 — Identity (editable)</div>
+        <div class="kv-grid">
+          ${manualField('Site ID','siteCode',site)}
+          ${manualField('Project','project',site)}
+          ${manualField('Company','company',site)}
+          ${manualField('Operator','operator',site)}
+          ${manualField('Region','region',site)}
+          ${manualField('Desa/Kota','desa',site)}
+          ${manualField('Korlap/Mandor','korlap',site)}
+          ${manualField('PIC Verificator','pic',site)}
+          ${manualField('Deputy','deputy',site)}
+          ${manualField('Email','email',site)}
+          ${manualField('Site Status','siteStatus',site)}
+          ${manualField('Doc Status','docStatus',site)}
+          ${manualField('Keterangan','keterangan',site)}
+          ${manualField('Tags (comma-separated)','tags',site)}
+          ${manualField('PO Number','poNumber',site)}
+          ${manualField('PO Date','poDate',site)}
+          ${manualField('PO Amount','poAmount',site)}
+          ${manualField('Addwork value','addworkValue',site)}
+        </div>
+        ${manualTextarea('Take Action','takeAction',site,'e.g. Binder TTD APM // Waiting TII Approved')}
+        ${manualTextarea('Addwork / LOS note','addworkNote',site,'e.g. Addwork PO released ..., not yet billed via MCV.')}
+        <div class="btn-row">
+          <button class="btn ghost" onclick="saveIdentityManual(${site.id})">Save identity fields</button>
+        </div>
+        <div style="margin-top:14px; font-size:12px; color:var(--ink-faint)">Or describe it in one sentence:</div>
+        <textarea id="tier1cmd-${site.id}" placeholder="Update identity info, e.g. Operator is Telkomsel now."></textarea>
+        <div class="btn-row">
+          <button class="btn ghost" onclick="submitTier1Update(${site.id})">Parse &amp; update</button>
+        </div>
+      </div>
+
+      <div class="tier">
+        <div class="tier-title">Tier 2 — Documents &amp; Termin (click box to toggle, type date on the right)</div>
+        <div class="binder-progress">
+          <div class="binder-progress-label">
+            <span>Binder completion</span>
+            <span>${binderPct}%</span>
+          </div>
+          <div class="binder-progress-track"><div class="binder-progress-fill" style="width:${binderPct}%"></div></div>
+        </div>
+        <div class="check-grid">
+          <div>${docChecks}${docChecks2}</div>
+          <div>${terminChecks}${addworkChecks}</div>
+        </div>
+        ${docGroupsHtml}
+      </div>
+
+      <div class="tier">
+        <div class="tier-title">Documents — files stored in this browser</div>
+        <div class="file-list">${filesHtml}</div>
+        <div class="btn-row" style="margin-top:10px;">
+          <label class="btn ghost" style="cursor:pointer; margin:0;">
+            + Upload file(s)
+            <input type="file" multiple style="display:none" onchange="uploadSiteFiles(${site.id}, this)">
+          </label>
+        </div>
+        <div style="font-size:11px; color:var(--ink-faint); margin-top:8px; line-height:1.5;">
+          Stored in this browser only — the regular "Export backup" does NOT include these files, only their names. Use "Export full backup (+files)" above to get a single file with everything, including these attachments.
+        </div>
+      </div>
+
+      <div class="tier">
+        <div class="tier-title">Tier 3 — Progress &amp; Guidance (editable)</div>
+        ${manualTextarea('Progress','progress',site,'e.g. Excavation ongoing, expected done next week.')}
+        ${manualTextarea('Next expectation','nextExpectation',site,'e.g. Expect RFI submission by end of month.')}
+        <div class="btn-row">
+          <button class="btn ghost" onclick="saveTier3Manual(${site.id})">Save progress &amp; guidance</button>
+        </div>
+        <div class="free-fields" style="margin-top:12px;">
+          <div class="row"><span class="k">Turnkey value (= PO Amount, from Tier 1)</span><span class="v">${site.poAmount||'—'}</span></div>
+          <div class="row"><span class="k">Addwork value (from Tier 1)</span><span class="v">${site.addworkValue||'—'}</span></div>
+          <div class="row"><span class="k">Suggestion (auto)</span><span class="v">${site.suggestion||'—'}</span></div>
+        </div>
+      </div>
+
+      <div class="tier">
+        <div class="tier-title">Update this site</div>
+        <textarea id="cmd-${site.id}" placeholder="e.g. Termin 1 is done at 12-9-25. RFI is done at 3-3-26. Progress halted because water damaged materials."></textarea>
+        <div class="btn-row">
+          <button class="btn" onclick="submitCommand(${site.id})">Submit update</button>
+          <button class="btn ghost" onclick="undoLastCommand(sites.find(s=>s.id===${site.id}))">Undo last update</button>
+          <button class="btn ghost" onclick="toggleSummary(${site.id})">Site summary</button>
+        </div>
+        <div class="summary-box" id="summary-${site.id}"></div>
+      </div>
+
+      <div class="tier">
+        <div class="tier-title">Last email</div>
+        <textarea id="emailtext-${site.id}" placeholder="Paste the last email text here...">${site.lastEmailText||''}</textarea>
+        <div class="email-upload">
+          <button class="btn ghost" onclick="handleEmailText(${site.id})">Save pasted text</button>
+          <button class="btn" onclick="smartIngestEmail(${site.id})">Smart Ingest → apply updates</button>
+          <input type="file" accept="image/*" onchange="handleEmailImage(${site.id}, this)">
+        </div>
+        <div style="font-size:11px; color:var(--ink-faint); margin-top:6px; line-height:1.5;">
+          Smart Ingest scans the pasted text for phrases like "RFI submitted on 12-05-26" or "Termin 2 paid" and ticks the matching checkboxes with their dates automatically.
+        </div>
+        ${site.lastEmailImgId ? `<img class="email-preview" style="display:block" id="email-preview-${site.id}" alt="Loading image...">` : ''}
+      </div>
+
+      <div class="tier">
+        <div class="tier-title">Manage this site</div>
+        <div class="btn-row">
+          <button class="btn ghost" onclick="printSiteReport(${site.id})">Print / PDF report</button>
+          <button class="btn ghost" onclick="toggleSiteCompleted(${site.id})">${site.completed ? 'Reopen site' : 'Mark as completed'}</button>
+          <button class="btn danger" onclick="deleteSite(${site.id})">Delete site</button>
+        </div>
+        ${site.completed ? '<div style="font-size:11px; color:var(--ink-faint); margin-top:8px;">Marked completed — it stays in your list, just out of the way, and won\'t be flagged as urgent. Delete it instead if you want it gone for good.</div>' : ''}
+      </div>
+
+      <div class="timestamp-note">
+        Last updated: ${Object.values(site.timestamps).length ? Object.values(site.timestamps).sort().reverse()[0] : 'never'}
+      </div>
+
+    </div>
+  </div>
+  `;
+}
+</script>
+</body>
+</html>
